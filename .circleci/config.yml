@@ -8,6 +8,13 @@ jobs:
     steps: &test-steps
       - checkout
 
+      # Download and cache dependencies
+      - restore_cache:
+          keys:
+            - v1-dependencies-{{ checksum "setup.py" }}
+            # fallback to using the latest cache if no exact match is found
+            - v1-dependencies-
+
       - run:
           name: "Setup"
           command: |
@@ -21,6 +28,11 @@ jobs:
           command: |
             . venv/bin/activate
             black --check sinter/
+
+      - save_cache:
+          paths:
+            - ./venv
+          key: v1-dependencies-{{ checksum "setup.py" }}
 
       - run:
           name: "Run tests"
