@@ -6,14 +6,13 @@ from uuid import UUID
 
 from hologram import JsonSchemaMixin, FieldEncoder
 
-Postcode = NewType('Postcode', str)
+Postcode = NewType("Postcode", str)
 
 
 class PostcodeField(FieldEncoder):
-
     @property
     def json_schema(self):
-        return {'type': 'string', 'minLength': 5, 'maxLength': 8}
+        return {"type": "string", "minLength": 5, "maxLength": 8}
 
 
 JsonSchemaMixin.register_field_encoders({Postcode: PostcodeField()})
@@ -24,11 +23,11 @@ class SubSchemas(JsonSchemaMixin):
 
 
 class Weekday(Enum):
-    MON = 'Monday'
-    TUE = 'Tuesday'
-    WED = 'Wednesday'
-    THU = 'Thursday'
-    FRI = 'Friday'
+    MON = "Monday"
+    TUE = "Tuesday"
+    WED = "Wednesday"
+    THU = "Thursday"
+    FRI = "Friday"
 
 
 @dataclass(eq=True)
@@ -38,15 +37,16 @@ class Point(SubSchemas):
 
     @classmethod
     def field_mapping(cls) -> Dict[str, str]:
-        return {'x': 'z'}
+        return {"x": "z"}
 
 
-NewPoint = NewType('NewPoint', Point)
+NewPoint = NewType("NewPoint", Point)
 
 
 @dataclass
 class Foo(SubSchemas):
     """A foo that foos"""
+
     a: datetime
     b: Optional[List[Point]]
     c: Dict[str, int]
@@ -60,25 +60,29 @@ class Foo(SubSchemas):
 @dataclass(eq=True)
 class Bar(JsonSchemaMixin):
     """Type with union field"""
+
     a: Union[Weekday, Point]
 
 
 @dataclass
 class Baz(JsonSchemaMixin):
     """Type with nested default value"""
+
     a: Point = field(default=Point(0.0, 0.0))
 
 
 @dataclass
 class Recursive(JsonSchemaMixin):
     """A recursive data-structure"""
+
     a: str
-    b: Optional['Recursive'] = None
+    b: Optional["Recursive"] = None
 
 
 @dataclass
 class OpaqueData(JsonSchemaMixin):
     """Structure with unknown types"""
+
     a: List[Any]
     b: Dict[str, Any]
 
@@ -106,4 +110,5 @@ class ProductList(JsonSchemaMixin):
 @dataclass
 class Zoo(JsonSchemaMixin):
     """A zoo"""
+
     animal_types: Optional[Dict[str, str]] = field(default_factory=dict)

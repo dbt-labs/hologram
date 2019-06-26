@@ -109,3 +109,5 @@ Pipfile.lock
 
 # mypy
 .mypy_cache/
+
+.vscode
