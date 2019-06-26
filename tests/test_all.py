@@ -6,7 +6,7 @@ from .conftest import Foo, Point, Recursive, OpaqueData, ShoppingCart, Product, 
     JsonSchemaMixin, Zoo, Baz
 import pytest
 
-from dataclasses_jsonschema import SchemaType, ValidationError
+from hologram import SchemaType, ValidationError
 
 try:
     import valico as _
@@ -26,46 +26,6 @@ FOO_SCHEMA = {
         'g': {'type': 'array', 'items': {'type': 'string'}},
         'e': {'oneOf': [{'type': 'string', 'minLength': 5, 'maxLength': 8}, {'type': 'null'}]},
         'h': {'oneOf': [{'$ref': '#/definitions/Point'}, {'type': 'null'}]},
-    },
-    'type': 'object',
-    'required': ['a', 'c', 'd', 'f', 'g']
-}
-
-SWAGGER_V2_FOO_SCHEMA = {
-    'description': 'A foo that foos',
-    'properties': {
-        'a': {'format': 'date-time', 'type': 'string'},
-        'b': {'oneOf': [{'items': {'$ref': '#/definitions/Point'}, 'type': 'array'}, {'type': 'null'}]},
-        'c': {'additionalProperties': {'type': 'integer'}, 'type': 'object'},
-        'd': {
-            'type': 'string',
-            'enum': ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
-            'x-enum-name': 'Weekday'
-        },
-        'f': {'type': 'array', 'minItems': 2, 'maxItems': 2, 'items': [{'type': 'string'}, {'type': 'integer'}]},
-        'g': {'type': 'array', 'items': {'type': 'string'}},
-        'e': {'oneOf': [{'type': 'string', 'minLength': 5, 'maxLength': 8}, {'type': 'null'}]},
-        'h': {'oneOf': [{'$ref': '#/definitions/Point'}, {'type': 'null'}]},
-    },
-    'type': 'object',
-    'required': ['a', 'c', 'd', 'f', 'g']
-}
-
-SWAGGER_V3_FOO_SCHEMA = {
-    'description': 'A foo that foos',
-    'properties': {
-        'a': {'format': 'date-time', 'type': 'string'},
-        'b': {'oneOf': [{'items': {'$ref': '#/components/schemas/Point'}, 'type': 'array'}, {'type': 'null'}]},
-        'c': {'additionalProperties': {'type': 'integer'}, 'type': 'object'},
-        'd': {
-            'type': 'string',
-            'enum': ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
-            'x-enum-name': 'Weekday'
-        },
-        'f': {'type': 'array', 'minItems': 2, 'maxItems': 2, 'items': [{'type': 'string'}, {'type': 'integer'}]},
-        'g': {'type': 'array', 'items': {'type': 'string'}},
-        'e': {'oneOf': [{'type': 'string', 'minLength': 5, 'maxLength': 8}, {'type': 'null'}]},
-        'h': {'oneOf': [{'$ref': '#/components/schemas/Point'}, {'type': 'null'}]},
     },
     'type': 'object',
     'required': ['a', 'c', 'd', 'f', 'g']
@@ -166,35 +126,31 @@ def test_field_with_default_dataclass():
     assert Baz(a=Point(0.0, 0.0)) == Baz.from_dict({})
 
 
-def test_embeddable_json_schema():
-    expected = {'Point': POINT_SCHEMA, 'Foo': FOO_SCHEMA}
-    assert expected == Foo.json_schema(embeddable=True)
-    expected = {'Point': POINT_SCHEMA, 'Foo': SWAGGER_V2_FOO_SCHEMA}
-    assert expected == SubSchemas.all_json_schemas(schema_type=SchemaType.SWAGGER_V2)
-    expected = {'Point': POINT_SCHEMA, 'Foo': SWAGGER_V3_FOO_SCHEMA}
-    assert expected == SubSchemas.all_json_schemas(schema_type=SchemaType.SWAGGER_V3)
-    expected = {
-        'Point': POINT_SCHEMA,
-        'Foo': FOO_SCHEMA,
-        'Recursive': RECURSIVE_SCHEMA,
-        'Product': PRODUCT_SCHEMA,
-        'ProductList': PRODUCT_LIST_SCHEMA,
-        'Bar': BAR_SCHEMA,
-        'ShoppingCart': SHOPPING_CART_SCHEMA,
-        'OpaqueData': OPAQUE_DATA_SCHEMA,
-        'Zoo': ZOO_SCHEMA,
-        'Baz': BAZ_SCHEMA
-    }
-    assert expected == JsonSchemaMixin.all_json_schemas()
-    with pytest.warns(DeprecationWarning):
-        assert expected == JsonSchemaMixin.json_schema()
+# def test_embeddable_json_schema():
+#     expected = {'Point': POINT_SCHEMA, 'Foo': FOO_SCHEMA}
+#     assert expected == Foo.json_schema(embeddable=True)
+#     expected = {
+#         'Point': POINT_SCHEMA,
+#         'Foo': FOO_SCHEMA,
+#         'Recursive': RECURSIVE_SCHEMA,
+#         'Product': PRODUCT_SCHEMA,
+#         'ProductList': PRODUCT_LIST_SCHEMA,
+#         'Bar': BAR_SCHEMA,
+#         'ShoppingCart': SHOPPING_CART_SCHEMA,
+#         'OpaqueData': OPAQUE_DATA_SCHEMA,
+#         'Zoo': ZOO_SCHEMA,
+#         'Baz': BAZ_SCHEMA
+#     }
+#     assert expected == JsonSchemaMixin.all_json_schemas()
+#     with pytest.warns(DeprecationWarning):
+#         assert expected == JsonSchemaMixin.json_schema()
 
 
 def test_json_schema():
     definitions = {'Point': POINT_SCHEMA}
     schema = {**FOO_SCHEMA, **{
         'definitions': definitions,
-        '$schema': 'http://json-schema.org/draft-06/schema#'
+        '$schema': 'http://json-schema.org/draft-07/schema#'
     }}
     assert schema == Foo.json_schema()
 
@@ -266,13 +222,9 @@ def test_type_union_schema():
     expected_schema = {
         **BAR_SCHEMA,
         'definitions': {'Point': POINT_SCHEMA},
-        '$schema': 'http://json-schema.org/draft-06/schema#'
+        '$schema': 'http://json-schema.org/draft-07/schema#'
     }
     assert expected_schema == Bar.json_schema()
-
-    # Should throw an error with SchemaType.SWAGGER_V2
-    with pytest.raises(TypeError):
-        Bar.json_schema(embeddable=True, schema_type=SchemaType.SWAGGER_V2)
 
 
 def test_type_union_serialise():
@@ -301,27 +253,27 @@ def test_default_factory():
     assert ClassTest.from_dict({}).attri == ['val']
 
 
-def test_read_only_field():
-    @dataclass
-    class Employee(JsonSchemaMixin):
-        name: str
-        department: str
-        id: int = field(metadata=dict(read_only=True), default=-1)
+# def test_read_only_field():
+#     @dataclass
+#     class Employee(JsonSchemaMixin):
+#         name: str
+#         department: str
+#         id: int = field(metadata=dict(read_only=True), default=-1)
 
-    schema = Employee.json_schema(schema_type=SchemaType.OPENAPI_3, embeddable=True)
-    assert schema['Employee']['properties']['id']['readOnly']
-    assert 'readOnly' not in Employee.json_schema(schema_type=SchemaType.DRAFT_06)['properties']['id']
+#     schema = Employee.json_schema(schema_type=SchemaType.DRAFT_07, embeddable=True)
+#     assert schema['Employee']['properties']['id']['readOnly']
+#     assert 'readOnly' not in Employee.json_schema(schema_type=SchemaType.DRAFT_06)['properties']['id']
 
 
-def test_read_only_field_no_default():
-    @dataclass
-    class Employee(JsonSchemaMixin):
-        name: str
-        department: str
-        id: int = field(metadata=dict(read_only=True))
+# def test_read_only_field_no_default():
+#     @dataclass
+#     class Employee(JsonSchemaMixin):
+#         name: str
+#         department: str
+#         id: int = field(metadata=dict(read_only=True))
 
-    with pytest.raises(ValueError):
-        Employee.json_schema(schema_type=SchemaType.OPENAPI_3, embeddable=True)
+#     with pytest.raises(ValueError):
+#         Employee.json_schema(schema_type=SchemaType.DRAFT_07, embeddable=True)
 
 
 def test_optional_field_no_default():
@@ -329,7 +281,7 @@ def test_optional_field_no_default():
     class FooBar(JsonSchemaMixin):
         id: Optional[int]
 
-    schema = FooBar.json_schema(schema_type=SchemaType.OPENAPI_3, embeddable=True)
+    schema = FooBar.json_schema(schema_type=SchemaType.DRAFT_07, embeddable=True)
 
     assert not hasattr(schema['FooBar'], 'required')
 
@@ -339,6 +291,6 @@ def test_required_union_field_no_default():
     class FooBar(JsonSchemaMixin):
         id: Union[int]
 
-    schema = FooBar.json_schema(schema_type=SchemaType.OPENAPI_3, embeddable=True)
+    schema = FooBar.json_schema(schema_type=SchemaType.DRAFT_07, embeddable=True)
 
     assert 'id' in schema['FooBar']['required']

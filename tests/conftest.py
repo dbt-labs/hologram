@@ -4,7 +4,7 @@ from enum import Enum
 from datetime import datetime
 from uuid import UUID
 
-from dataclasses_jsonschema import JsonSchemaMixin, FieldEncoder
+from hologram import JsonSchemaMixin, FieldEncoder
 
 Postcode = NewType('Postcode', str)
 
