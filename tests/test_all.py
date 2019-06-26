@@ -19,14 +19,8 @@ from .conftest import (
 )
 import pytest
 
-from hologram import SchemaType, ValidationError
+from hologram import ValidationError
 
-try:
-    import valico as _
-
-    have_valico = True
-except ImportError:
-    have_valico = False
 
 FOO_SCHEMA = {
     "description": "A foo that foos",
@@ -168,8 +162,6 @@ def test_field_with_default_factory():
     ) == Zoo.from_dict({"animal_types": {"snake": "reptile", "dog": "mammal"}})
 
 
-# TODO: Investigate this / raise an issue on https://github.com/rustless/valico
-@pytest.mark.skipif(have_valico, reason="Skipped due to valico bug")
 def test_field_with_default_dataclass():
     assert Baz(a=Point(0.0, 0.0)) == Baz.from_dict({})
 
@@ -323,8 +315,6 @@ def test_default_factory():
     class ClassTest(JsonSchemaMixin):
         attri: List[str] = field(default_factory=lambda: ["val"])
 
-    assert "required" not in ClassTest.json_schema().keys()
-
     assert ClassTest().attri == ["val"]
     assert ClassTest().to_dict() == {"attri": ["val"]}
     assert ClassTest.from_dict({}).attri == ["val"]
@@ -337,9 +327,9 @@ def test_default_factory():
 #         department: str
 #         id: int = field(metadata=dict(read_only=True), default=-1)
 
-#     schema = Employee.json_schema(schema_type=SchemaType.DRAFT_07, embeddable=True)
+#     schema = Employee.json_schema(embeddable=True)
 #     assert schema['Employee']['properties']['id']['readOnly']
-#     assert 'readOnly' not in Employee.json_schema(schema_type=SchemaType.DRAFT_06)['properties']['id']
+#     assert 'readOnly' not in Employee.json_schema()['properties']['id']
 
 
 # def test_read_only_field_no_default():
@@ -350,7 +340,7 @@ def test_default_factory():
 #         id: int = field(metadata=dict(read_only=True))
 
 #     with pytest.raises(ValueError):
-#         Employee.json_schema(schema_type=SchemaType.DRAFT_07, embeddable=True)
+#         Employee.json_schema(embeddable=True)
 
 
 def test_optional_field_no_default():
@@ -358,9 +348,7 @@ def test_optional_field_no_default():
     class FooBar(JsonSchemaMixin):
         id: Optional[int]
 
-    schema = FooBar.json_schema(
-        schema_type=SchemaType.DRAFT_07, embeddable=True
-    )
+    schema = FooBar.json_schema(embeddable=True)
 
     assert not hasattr(schema["FooBar"], "required")
 
@@ -370,8 +358,6 @@ def test_required_union_field_no_default():
     class FooBar(JsonSchemaMixin):
         id: Union[int]
 
-    schema = FooBar.json_schema(
-        schema_type=SchemaType.DRAFT_07, embeddable=True
-    )
+    schema = FooBar.json_schema(embeddable=True)
 
     assert "id" in schema["FooBar"]["required"]
