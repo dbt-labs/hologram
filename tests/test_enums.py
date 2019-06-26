@@ -7,8 +7,8 @@ from typing import List
 
 
 class Bar(StrEnum):
-    x = 'x'
-    y = 'y'
+    x = "x"
+    y = "y"
 
 
 @dataclass
@@ -40,12 +40,14 @@ def test_validation():
 def test_schema():
     schema = UsesBar.json_schema()
 
-    assert schema['type'] == 'object'
-    assert schema['required'] == ['bar']
-    assert schema['properties'] == {"bar": {"type": "string", "enum": ["x", "y"]}}
+    assert schema["type"] == "object"
+    assert schema["required"] == ["bar"]
+    assert schema["properties"] == {
+        "bar": {"type": "string", "enum": ["x", "y"]}
+    }
 
     schema = UsesBarLiteral.json_schema()
 
-    assert schema['type'] == 'object'
-    assert schema['required'] == ['bar']
-    assert schema['properties'] == {"bar": {"type": "string", "enum": ["x"]}}
+    assert schema["type"] == "object"
+    assert schema["required"] == ["bar"]
+    assert schema["properties"] == {"bar": {"type": "string", "enum": ["x"]}}
