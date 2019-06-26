@@ -27,7 +27,7 @@ jobs:
           name: "Check code formatting"
           command: |
             . venv/bin/activate
-            black --check .
+            black --check hologram/ tests/
 
       - save_cache:
           paths:

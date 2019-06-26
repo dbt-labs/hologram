@@ -75,7 +75,10 @@ POINT_SCHEMA = {
 
 RECURSIVE_SCHEMA = {
     "description": Recursive.__doc__,
-    "properties": {"a": {"type": "string"}, "b": {"$ref": "#/definitions/Recursive"}},
+    "properties": {
+        "a": {"type": "string"},
+        "b": {"$ref": "#/definitions/Recursive"},
+    },
     "type": "object",
     "required": ["a"],
 }
@@ -124,7 +127,13 @@ BAR_SCHEMA = {
             "oneOf": [
                 {
                     "type": "string",
-                    "enum": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+                    "enum": [
+                        "Monday",
+                        "Tuesday",
+                        "Wednesday",
+                        "Thursday",
+                        "Friday",
+                    ],
                 },
                 {"$ref": "#/definitions/Point"},
             ]
@@ -154,9 +163,9 @@ BAZ_SCHEMA = {
 
 def test_field_with_default_factory():
     assert Zoo(animal_types={}) == Zoo.from_dict({})
-    assert Zoo(animal_types={"snake": "reptile", "dog": "mammal"}) == Zoo.from_dict(
-        {"animal_types": {"snake": "reptile", "dog": "mammal"}}
-    )
+    assert Zoo(
+        animal_types={"snake": "reptile", "dog": "mammal"}
+    ) == Zoo.from_dict({"animal_types": {"snake": "reptile", "dog": "mammal"}})
 
 
 # TODO: Investigate this / raise an issue on https://github.com/rustless/valico
@@ -243,7 +252,12 @@ def test_recursive_data():
 
 def test_recursive_validation():
     # a valid shopping cart containing two items
-    data = {"items": [{"name": "apple", "cost": 0.4}, {"name": "banana", "cost": 0.6}]}
+    data = {
+        "items": [
+            {"name": "apple", "cost": 0.4},
+            {"name": "banana", "cost": 0.6},
+        ]
+    }
     cart = ShoppingCart.from_dict(data, validate=True)
     assert len(cart.items) == 2
     assert {item.name for item in cart.items} == {"apple", "banana"}
@@ -265,7 +279,10 @@ def test_non_string_keys():
     )
     expected_data = {
         "products": {
-            "462b92e8-b3f7-4cb7-ae93-18e829c7e10d": {"name": "hammer", "cost": 25.10}
+            "462b92e8-b3f7-4cb7-ae93-18e829c7e10d": {
+                "name": "hammer",
+                "cost": 25.10,
+            }
         }
     }
     assert p.to_dict() == expected_data
@@ -283,16 +300,22 @@ def test_type_union_schema():
 
 def test_type_union_serialise():
     assert Bar(a=Weekday.MON).to_dict() == {"a": "Monday"}
-    assert Bar(a=Point(x=1.25, y=3.5)).to_dict() == {"a": {"z": 1.25, "y": 3.5}}
+    assert Bar(a=Point(x=1.25, y=3.5)).to_dict() == {
+        "a": {"z": 1.25, "y": 3.5}
+    }
 
 
 def test_type_union_deserialise():
     assert Bar.from_dict({"a": "Friday"}) == Bar(a=Weekday.FRI)
-    assert Bar.from_dict({"a": {"z": 3.6, "y": 10.1}}) == Bar(a=Point(x=3.6, y=10.1))
+    assert Bar.from_dict({"a": {"z": 3.6, "y": 10.1}}) == Bar(
+        a=Point(x=3.6, y=10.1)
+    )
 
 
 def test_default_values():
-    assert Product(name="hammer", cost=20.0) == Product.from_dict({"name": "hammer"})
+    assert Product(name="hammer", cost=20.0) == Product.from_dict(
+        {"name": "hammer"}
+    )
 
 
 def test_default_factory():
@@ -335,7 +358,9 @@ def test_optional_field_no_default():
     class FooBar(JsonSchemaMixin):
         id: Optional[int]
 
-    schema = FooBar.json_schema(schema_type=SchemaType.DRAFT_07, embeddable=True)
+    schema = FooBar.json_schema(
+        schema_type=SchemaType.DRAFT_07, embeddable=True
+    )
 
     assert not hasattr(schema["FooBar"], "required")
 
@@ -345,6 +370,8 @@ def test_required_union_field_no_default():
     class FooBar(JsonSchemaMixin):
         id: Union[int]
 
-    schema = FooBar.json_schema(schema_type=SchemaType.DRAFT_07, embeddable=True)
+    schema = FooBar.json_schema(
+        schema_type=SchemaType.DRAFT_07, embeddable=True
+    )
 
     assert "id" in schema["FooBar"]["required"]

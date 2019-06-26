@@ -84,7 +84,9 @@ class DateTimeFieldEncoder(FieldEncoder):
         return out
 
     def to_python(self, value: JsonEncodable) -> datetime:
-        return value if isinstance(value, datetime) else parse(cast(str, value))
+        return (
+            value if isinstance(value, datetime) else parse(cast(str, value))
+        )
 
     @property
     def json_schema(self) -> JsonDict:
@@ -103,7 +105,9 @@ class UuidField(FieldEncoder):
         # 'format': 'uuid' is not valid in "real" JSONSchema
         return {
             "type": "string",
-            "pattern": ("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"),
+            "pattern": (
+                "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+            ),
         }
 
 
@@ -123,7 +127,9 @@ T = TypeVar("T", bound="JsonSchemaMixin")
 def _to_camel_case(value: str) -> str:
     if "_" in value:
         parts = value.split("_")
-        return "".join([parts[0]] + [part[0].upper() + part[1:] for part in parts[1:]])
+        return "".join(
+            [parts[0]] + [part[0].upper() + part[1:] for part in parts[1:]]
+        )
     else:
         return value
 
@@ -135,7 +141,11 @@ class FieldMeta:
 
     @property
     def as_dict(self) -> Dict:
-        return {_to_camel_case(k): v for k, v in asdict(self).items() if v is not None}
+        return {
+            _to_camel_case(k): v
+            for k, v in asdict(self).items()
+            if v is not None
+        }
 
 
 class JsonSchemaMixin:
@@ -176,7 +186,9 @@ class JsonSchemaMixin:
             cls._field_encoders.update(field_encoders)
 
     @classmethod
-    def _encode_field(cls, field_type: Any, value: Any, omit_none: bool) -> Any:
+    def _encode_field(
+        cls, field_type: Any, value: Any, omit_none: bool
+    ) -> Any:
         if value is None:
             return value
         try:
@@ -223,9 +235,9 @@ class JsonSchemaMixin:
 
                 def encoder(ft, val, o):
                     return {
-                        cls._encode_field(ft.__args__[0], k, o): cls._encode_field(
-                            ft.__args__[1], v, o
-                        )
+                        cls._encode_field(
+                            ft.__args__[0], k, o
+                        ): cls._encode_field(ft.__args__[1], v, o)
                         for k, v in val.items()
                     }
 
@@ -234,7 +246,9 @@ class JsonSchemaMixin:
             ):
 
                 def encoder(ft, val, o):
-                    return [cls._encode_field(ft.__args__[0], v, o) for v in val]
+                    return [
+                        cls._encode_field(ft.__args__[0], v, o) for v in val
+                    ]
 
             elif field_type_name == "Tuple":
 
@@ -273,18 +287,24 @@ class JsonSchemaMixin:
                     continue
                 # Note fields() doesn't resolve forward refs
                 f.type = type_hints[f.name]
-                mapped_fields.append((f, cls.field_mapping().get(f.name, f.name)))
+                mapped_fields.append(
+                    (f, cls.field_mapping().get(f.name, f.name))
+                )
             cls._mapped_fields = mapped_fields  # type: ignore
         return cls._mapped_fields  # type: ignore
 
-    def to_dict(self, omit_none: bool = True, validate: bool = False) -> JsonDict:
+    def to_dict(
+        self, omit_none: bool = True, validate: bool = False
+    ) -> JsonDict:
         """Converts the dataclass instance to a JSON encodable dict, with optional JSON schema validation.
 
         If omit_none (default True) is specified, any items with value None are removed
         """
         data = {}
         for field, target_field in self._get_fields():
-            value = self._encode_field(field.type, getattr(self, field.name), omit_none)
+            value = self._encode_field(
+                field.type, getattr(self, field.name), omit_none
+            )
             if omit_none and value is None:
                 continue
             data[target_field] = value
@@ -337,9 +357,9 @@ class JsonSchemaMixin:
 
                 def decoder(f, ft, val):
                     return {
-                        cls._decode_field(f, ft.__args__[0], k): cls._decode_field(
-                            f, ft.__args__[1], v
-                        )
+                        cls._decode_field(
+                            f, ft.__args__[0], k
+                        ): cls._decode_field(f, ft.__args__[1], v)
                         for k, v in val.items()
                     }
 
@@ -428,7 +448,8 @@ class JsonSchemaMixin:
             # In case of default value given
             default_value = field.default
         elif (
-            field.default_factory is not MISSING and field.default_factory is not None
+            field.default_factory is not MISSING
+            and field.default_factory is not None
         ):  # type: ignore
             # In case of a default factory given, we call it
             default_value = field.default_factory()  # type: ignore
@@ -495,9 +516,13 @@ class JsonSchemaMixin:
             elif field_type_name in ("Dict", "Mapping"):
                 field_schema = {"type": "object"}
                 if field_type.__args__[1] is not Any:
-                    field_schema["additionalProperties"] = cls._get_field_schema(
+                    field_schema[
+                        "additionalProperties"
+                    ] = cls._get_field_schema(
                         field_type.__args__[1], schema_type
-                    )[0]
+                    )[
+                        0
+                    ]
             elif field_type_name in ("Sequence", "List") or (
                 field_type_name == "Tuple" and ... in field_type.__args__
             ):
@@ -521,13 +546,17 @@ class JsonSchemaMixin:
             elif field_type in JSON_ENCODABLE_TYPES:
                 field_schema.update(JSON_ENCODABLE_TYPES[field_type])
             elif field_type in cls._field_encoders:
-                field_schema.update(cls._field_encoders[field_type].json_schema)
+                field_schema.update(
+                    cls._field_encoders[field_type].json_schema
+                )
             elif hasattr(field_type, "__supertype__"):  # NewType fields
                 field_schema, _ = cls._get_field_schema(
                     field_type.__supertype__, schema_type
                 )
             else:
-                warnings.warn(f"Unable to create schema for '{field_type_name}'")
+                warnings.warn(
+                    f"Unable to create schema for '{field_type_name}'"
+                )
 
         field_schema.update(field_meta.as_dict)
 
@@ -538,10 +567,18 @@ class JsonSchemaMixin:
         cls, field_type: Any, definitions: JsonDict, schema_type: SchemaType
     ):
         field_type_name = cls._get_field_type_name(field_type)
-        if is_optional(field_type) or field_type_name in ("Sequence", "List", "Tuple"):
-            cls._get_field_definitions(field_type.__args__[0], definitions, schema_type)
+        if is_optional(field_type) or field_type_name in (
+            "Sequence",
+            "List",
+            "Tuple",
+        ):
+            cls._get_field_definitions(
+                field_type.__args__[0], definitions, schema_type
+            )
         elif field_type_name in ("Dict", "Mapping"):
-            cls._get_field_definitions(field_type.__args__[1], definitions, schema_type)
+            cls._get_field_definitions(
+                field_type.__args__[1], definitions, schema_type
+            )
         elif field_type_name == "Union":
             for variant in field_type.__args__:
                 cls._get_field_definitions(variant, definitions, schema_type)
@@ -550,7 +587,9 @@ class JsonSchemaMixin:
             if field_type.__name__ not in definitions:
                 definitions[field_type.__name__] = None
                 definitions.update(
-                    field_type.json_schema(embeddable=True, schema_type=schema_type)
+                    field_type.json_schema(
+                        embeddable=True, schema_type=schema_type
+                    )
                 )
 
     @classmethod
@@ -562,10 +601,14 @@ class JsonSchemaMixin:
         for subclass in cls.__subclasses__():
             if is_dataclass(subclass):
                 definitions.update(
-                    subclass.json_schema(embeddable=True, schema_type=schema_type)
+                    subclass.json_schema(
+                        embeddable=True, schema_type=schema_type
+                    )
                 )
             else:
-                definitions.update(subclass.all_json_schemas(schema_type=schema_type))
+                definitions.update(
+                    subclass.all_json_schemas(schema_type=schema_type)
+                )
         return definitions
 
     @classmethod
@@ -581,7 +624,10 @@ class JsonSchemaMixin:
         Enable the embeddable flag to generate the schema in a format for embedding into other schemas
         or documents supporting JSON schema such as Swagger specs.
         """
-        if "swagger_version" in kwargs and kwargs["swagger_version"] is not None:
+        if (
+            "swagger_version" in kwargs
+            and kwargs["swagger_version"] is not None
+        ):
             schema_type = kwargs["swagger_version"]
 
         if cls is JsonSchemaMixin:
@@ -608,10 +654,16 @@ class JsonSchemaMixin:
                 properties[target_field], is_required = cls._get_field_schema(
                     field, schema_type
                 )
-                cls._get_field_definitions(field.type, definitions, schema_type)
+                cls._get_field_definitions(
+                    field.type, definitions, schema_type
+                )
                 if is_required:
                     required.append(target_field)
-            schema = {"type": "object", "required": required, "properties": properties}
+            schema = {
+                "type": "object",
+                "required": required,
+                "properties": properties,
+            }
 
             # Needed for Draft 04 backwards compatibility
             if len(required) == 0:
@@ -634,7 +686,10 @@ class JsonSchemaMixin:
         else:
             schema_uri = "http://json-schema.org/draft-07/schema#"
 
-        return {**schema, **{"definitions": definitions, "$schema": schema_uri}}
+        return {
+            **schema,
+            **{"definitions": definitions, "$schema": schema_uri},
+        }
 
     @staticmethod
     def _get_field_type_name(field_type: Any) -> str:
