@@ -624,12 +624,6 @@ class JsonSchemaMixin:
         Enable the embeddable flag to generate the schema in a format for embedding into other schemas
         or documents supporting JSON schema such as Swagger specs.
         """
-        if (
-            "swagger_version" in kwargs
-            and kwargs["swagger_version"] is not None
-        ):
-            schema_type = kwargs["swagger_version"]
-
         if cls is JsonSchemaMixin:
             warnings.warn(
                 "Calling 'JsonSchemaMixin.json_schema' is deprecated. Use 'JsonSchemaMixin.all_json_schemas' instead",
