@@ -14,6 +14,8 @@ from .conftest import (
     Bar,
     Weekday,
     JsonSchemaMixin,
+    Zoo,
+    Baz,
 )
 import pytest
 
@@ -52,6 +54,7 @@ FOO_SCHEMA = {
     },
     "type": "object",
     "required": ["a", "c", "d", "f", "g"],
+    "additionalProperties": False,
 }
 
 # Fixme: Fields in description no longer match
@@ -63,6 +66,7 @@ POINT_SCHEMA = {
         "y": {"type": "number", "description": "Point y coordinate"},
     },
     "required": ["z", "y"],
+    "additionalProperties": False,
 }
 
 RECURSIVE_SCHEMA = {
@@ -73,6 +77,7 @@ RECURSIVE_SCHEMA = {
     },
     "type": "object",
     "required": ["a"],
+    "additionalProperties": False,
 }
 
 OPAQUE_DATA_SCHEMA = {
@@ -80,6 +85,7 @@ OPAQUE_DATA_SCHEMA = {
     "properties": {"a": {"type": "array"}, "b": {"type": "object"}},
     "type": "object",
     "required": ["a", "b"],
+    "additionalProperties": False,
 }
 
 PRODUCT_SCHEMA = {
@@ -90,6 +96,7 @@ PRODUCT_SCHEMA = {
     },
     "required": ["name"],
     "type": "object",
+    "additionalProperties": False,
 }
 
 SHOPPING_CART_SCHEMA = {
@@ -99,6 +106,7 @@ SHOPPING_CART_SCHEMA = {
     },
     "required": ["items"],
     "type": "object",
+    "additionalProperties": False,
 }
 PRODUCT_LIST_SCHEMA = {
     "description": ProductList.__doc__,
@@ -110,6 +118,7 @@ PRODUCT_LIST_SCHEMA = {
     },
     "type": "object",
     "required": ["products"],
+    "additionalProperties": False,
 }
 BAR_SCHEMA = {
     "type": "object",
@@ -132,7 +141,39 @@ BAR_SCHEMA = {
         }
     },
     "required": ["a"],
+    "additionalProperties": False,
 }
+ZOO_SCHEMA = {
+    "type": "object",
+    "description": "A zoo",
+    "properties": {
+        "animal_types": {
+            "additionalProperties": {"type": "string"},
+            "type": "object",
+            "default": {},
+        }
+    },
+    "additionalProperties": False,
+}
+BAZ_SCHEMA = {
+    "description": "Type with nested default value",
+    "properties": {
+        "a": {"$ref": "#/definitions/Point", "default": {"z": 0.0, "y": 0.0}}
+    },
+    "type": "object",
+    "additionalProperties": False,
+}
+
+
+def test_field_with_default_factory():
+    assert Zoo(animal_types={}) == Zoo.from_dict({})
+    assert Zoo(
+        animal_types={"snake": "reptile", "dog": "mammal"}
+    ) == Zoo.from_dict({"animal_types": {"snake": "reptile", "dog": "mammal"}})
+
+
+def test_field_with_default_dataclass():
+    assert Baz(a=Point(0.0, 0.0)) == Baz.from_dict({})
 
 
 # def test_embeddable_json_schema():
@@ -147,6 +188,8 @@ BAR_SCHEMA = {
 #         'Bar': BAR_SCHEMA,
 #         'ShoppingCart': SHOPPING_CART_SCHEMA,
 #         'OpaqueData': OPAQUE_DATA_SCHEMA,
+#         'Zoo': ZOO_SCHEMA,
+#         'Baz': BAZ_SCHEMA
 #     }
 #     assert expected == JsonSchemaMixin.all_json_schemas()
 #     with pytest.warns(DeprecationWarning):

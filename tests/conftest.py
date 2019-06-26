@@ -64,11 +64,11 @@ class Bar(JsonSchemaMixin):
     a: Union[Weekday, Point]
 
 
-# @dataclass
-# class Baz(JsonSchemaMixin):
-#     """Type with nested default value"""
+@dataclass
+class Baz(JsonSchemaMixin):
+    """Type with nested default value"""
 
-#     a: Point = field(default=Point(0.0, 0.0))
+    a: Point = field(default=Point(0.0, 0.0))
 
 
 @dataclass
@@ -107,8 +107,8 @@ class ProductList(JsonSchemaMixin):
     products: Dict[UUID, Product]
 
 
-# @dataclass
-# class Zoo(JsonSchemaMixin):
-#     """A zoo"""
+@dataclass
+class Zoo(JsonSchemaMixin):
+    """A zoo"""
 
-#     animal_types: Optional[Dict[str, str]] = field(default_factory=dict)
+    animal_types: Optional[Dict[str, str]] = field(default_factory=dict)

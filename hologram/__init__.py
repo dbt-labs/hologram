@@ -657,6 +657,7 @@ class JsonSchemaMixin:
                 "type": "object",
                 "required": required,
                 "properties": properties,
+                "additionalProperties": False,
             }
 
             if cls.__doc__:
