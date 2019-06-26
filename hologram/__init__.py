@@ -153,8 +153,9 @@ class JsonSchemaMixin:
     }
 
     # Cache of the generated schema
-    _schema: Optional[JsonDict] = None
-    _definitions: Optional[JsonDict] = None
+    _schema: Optional[Dict[str, JsonDict]] = None
+    _definitions: Optional[Dict[str, JsonDict]] = None
+
     # Cache of field encode / decode functions
     _encode_cache: Optional[Dict[Any, _ValueEncoder]] = None
     _decode_cache: Optional[Dict[Any, _ValueDecoder]] = None
@@ -272,20 +273,20 @@ class JsonSchemaMixin:
 
     @classmethod
     def _get_fields(cls) -> List[Tuple[Field, str]]:
-        if cls._mapped_fields is None:
-            mapped_fields = []
-            type_hints = get_type_hints(cls)
-            for f in fields(cls):
-                # Skip internal fields
-                if f.name.startswith("_"):
-                    continue
-                # Note fields() doesn't resolve forward refs
-                f.type = type_hints[f.name]
-                mapped_fields.append(
-                    (f, cls.field_mapping().get(f.name, f.name))
-                )
-            cls._mapped_fields = mapped_fields  # type: ignore
-        return cls._mapped_fields  # type: ignore
+        mapped_fields = []
+        type_hints = get_type_hints(cls)
+
+        for f in fields(cls):
+            # Skip internal fields
+            if f.name.startswith("_"):
+                continue
+
+            # Note fields() doesn't resolve forward refs
+            f.type = type_hints[f.name]
+
+            mapped_fields.append((f, cls.field_mapping().get(f.name, f.name)))
+
+        return mapped_fields  # type: ignore
 
     def to_dict(
         self, omit_none: bool = True, validate: bool = False
@@ -339,14 +340,17 @@ class JsonSchemaMixin:
             elif field_type_name == "Union":
                 # Attempt to decode the value using each decoder in turn
                 decoded = None
+
                 for variant in field_type.__args__:
                     try:
                         decoded = cls._decode_field(field, variant, value)
                         break
                     except (AttributeError, TypeError, ValueError):
                         continue
+
                 if decoded is not None:
                     return decoded
+
             elif field_type_name in ("Mapping", "Dict"):
 
                 def decoder(f, ft, val):
@@ -399,13 +403,34 @@ class JsonSchemaMixin:
         return decoder(field, field_type, value)
 
     @classmethod
+    def _find_matching_validator(cls: Type[T], data: JsonDict) -> T:
+        if cls is not JsonSchemaMixin:
+            raise NotImplementedError
+
+        decoded = None
+
+        for subclass in cls.__subclasses__():
+            try:
+                if is_dataclass(subclass):
+                    return subclass.from_dict(data)
+
+            except ValidationError:
+                continue
+
+        if decoded is None:
+            raise ValidationError("No matching validator for data.")
+
+        return decoded
+
+    @classmethod
     def from_dict(cls: Type[T], data: JsonDict, validate=True) -> T:
         """Returns a dataclass instance with all nested classes converted from the dict given"""
         if cls is JsonSchemaMixin:
-            raise NotImplementedError
+            return cls._find_matching_validator(data)
 
         init_values: Dict[str, Any] = {}
         non_init_values: Dict[str, Any] = {}
+
         if validate:
             try:
                 validator.validate(data, cls.json_schema())
@@ -421,10 +446,13 @@ class JsonSchemaMixin:
                     field.name, field.type, data.get(target_field)
                 )
 
-        # Need to ignore the type error here, since mypy doesn't know that subclasses are dataclasses
+        # Need to ignore the type error here, since mypy doesn't know that
+        # subclasses are dataclasses
         instance = cls(**init_values)  # type: ignore
+
         for field_name, value in non_init_values.items():
             setattr(instance, field_name, value)
+
         return instance
 
     @staticmethod
@@ -474,6 +502,7 @@ class JsonSchemaMixin:
 
         field_type_name = cls._get_field_type_name(field_type)
         ref_path = "#/definitions"
+
         if cls._is_json_schema_subclass(field_type):
             field_schema = {"$ref": "{}/{}".format(ref_path, field_type_name)}
         else:
@@ -511,6 +540,7 @@ class JsonSchemaMixin:
                     field_schema[
                         "additionalProperties"
                     ] = cls._get_field_schema(field_type.__args__[1])[0]
+
             elif field_type_name in ("Sequence", "List") or (
                 field_type_name == "Tuple" and ... in field_type.__args__
             ):
@@ -519,6 +549,7 @@ class JsonSchemaMixin:
                     field_schema["items"] = cls._get_field_schema(
                         field_type.__args__[0]
                     )[0]
+
             elif field_type_name == "Tuple":
                 tuple_len = len(field_type.__args__)
                 # TODO: How do we handle Optional type within lists / tuples
@@ -531,16 +562,20 @@ class JsonSchemaMixin:
                         for type_arg in field_type.__args__
                     ],
                 }
+
             elif field_type in JSON_ENCODABLE_TYPES:
                 field_schema.update(JSON_ENCODABLE_TYPES[field_type])
+
             elif field_type in cls._field_encoders:
                 field_schema.update(
                     cls._field_encoders[field_type].json_schema
                 )
+
             elif hasattr(field_type, "__supertype__"):  # NewType fields
                 field_schema, _ = cls._get_field_schema(
                     field_type.__supertype__
                 )
+
             else:
                 warnings.warn(
                     f"Unable to create schema for '{field_type_name}'"
@@ -582,7 +617,7 @@ class JsonSchemaMixin:
         return definitions
 
     @classmethod
-    def json_schema(cls, embeddable: bool = False, **kwargs) -> JsonDict:
+    def json_schema(cls, embeddable: bool = False) -> JsonDict:
         """Returns the JSON schema for the dataclass, along with the schema of any nested dataclasses
         within the 'definitions' field.
 
@@ -599,12 +634,14 @@ class JsonSchemaMixin:
         definitions: JsonDict = {}
 
         if cls._definitions is None:
-            cls._definitions = definitions
+            cls._definitions = {cls.__name__: definitions}
+        elif cls.__name__ not in cls._definitions:
+            cls._definitions[cls.__name__] = definitions
         else:
-            definitions = cls._definitions
+            definitions = cls._definitions[cls.__name__]
 
-        if cls._schema is not None:
-            schema = cls._schema
+        if cls._schema is not None and cls.__name__ in cls._schema:
+            schema = cls._schema[cls.__name__]
 
         else:
             properties = {}
@@ -620,6 +657,7 @@ class JsonSchemaMixin:
                 "type": "object",
                 "required": required,
                 "properties": properties,
+                "additionalProperties": False,
             }
 
             if cls.__doc__:
@@ -628,7 +666,7 @@ class JsonSchemaMixin:
             if cls._schema is None:
                 cls._schema = {}
 
-            cls._schema = schema
+            cls._schema[cls.__name__] = schema
 
         if embeddable:
             return {**definitions, cls.__name__: schema}

@@ -54,6 +54,7 @@ FOO_SCHEMA = {
     },
     "type": "object",
     "required": ["a", "c", "d", "f", "g"],
+    "additionalProperties": False,
 }
 
 # Fixme: Fields in description no longer match
@@ -65,6 +66,7 @@ POINT_SCHEMA = {
         "y": {"type": "number", "description": "Point y coordinate"},
     },
     "required": ["z", "y"],
+    "additionalProperties": False,
 }
 
 RECURSIVE_SCHEMA = {
@@ -75,6 +77,7 @@ RECURSIVE_SCHEMA = {
     },
     "type": "object",
     "required": ["a"],
+    "additionalProperties": False,
 }
 
 OPAQUE_DATA_SCHEMA = {
@@ -82,6 +85,7 @@ OPAQUE_DATA_SCHEMA = {
     "properties": {"a": {"type": "array"}, "b": {"type": "object"}},
     "type": "object",
     "required": ["a", "b"],
+    "additionalProperties": False,
 }
 
 PRODUCT_SCHEMA = {
@@ -92,6 +96,7 @@ PRODUCT_SCHEMA = {
     },
     "required": ["name"],
     "type": "object",
+    "additionalProperties": False,
 }
 
 SHOPPING_CART_SCHEMA = {
@@ -101,6 +106,7 @@ SHOPPING_CART_SCHEMA = {
     },
     "required": ["items"],
     "type": "object",
+    "additionalProperties": False,
 }
 PRODUCT_LIST_SCHEMA = {
     "description": ProductList.__doc__,
@@ -112,6 +118,7 @@ PRODUCT_LIST_SCHEMA = {
     },
     "type": "object",
     "required": ["products"],
+    "additionalProperties": False,
 }
 BAR_SCHEMA = {
     "type": "object",
@@ -134,6 +141,7 @@ BAR_SCHEMA = {
         }
     },
     "required": ["a"],
+    "additionalProperties": False,
 }
 ZOO_SCHEMA = {
     "type": "object",
@@ -145,6 +153,7 @@ ZOO_SCHEMA = {
             "default": {},
         }
     },
+    "additionalProperties": False,
 }
 BAZ_SCHEMA = {
     "description": "Type with nested default value",
@@ -152,6 +161,7 @@ BAZ_SCHEMA = {
         "a": {"$ref": "#/definitions/Point", "default": {"z": 0.0, "y": 0.0}}
     },
     "type": "object",
+    "additionalProperties": False,
 }
 
 
