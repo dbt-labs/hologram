@@ -18,7 +18,7 @@ setup(
     packages=['hologram'],
     package_data={'hologram': ["py.typed"]},
     author='Connor McArthur, Jacob Beck, Simon Knibbs',
-    author_email='simon.knibbs@gmail.com',
+    author_email='info@fishtowanalytics.com, simon.knibbs@gmail.com',
     url='https://github.com/fishtown-analytics/hologram',
     install_requires=requires,
     setup_requires=['pytest-runner', 'setuptools_scm'],
