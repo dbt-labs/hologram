@@ -304,10 +304,7 @@ class JsonSchemaMixin:
                 continue
             data[target_field] = value
         if validate:
-            try:
-                validator.validate(data, self.json_schema())
-            except validator.ValidationError as e:
-                raise ValidationError(str(e)) from e
+            self.validate(data)
         return data
 
     @classmethod
@@ -432,10 +429,7 @@ class JsonSchemaMixin:
         non_init_values: Dict[str, Any] = {}
 
         if validate:
-            try:
-                validator.validate(data, cls.json_schema())
-            except validator.ValidationError as e:
-                raise ValidationError(str(e)) from e
+            cls.validate(data)
 
         for field, target_field in cls._get_fields():
             values = init_values if field.init else non_init_values
@@ -487,10 +481,87 @@ class JsonSchemaMixin:
         return field_meta, required
 
     @classmethod
+    def _get_schema_for_type(
+        cls, target: Type, required: bool = True
+    ) -> Tuple[JsonDict, bool]:
+
+        field_schema: JsonDict = {"type": "object"}
+
+        type_name = cls._get_field_type_name(target)
+        # if Union[..., None] or Optional[...]
+        if type_name == "Union":
+            field_schema = {
+                "oneOf": [
+                    cls._get_field_schema(variant)[0]
+                    for variant in target.__args__
+                ]
+            }
+
+            if is_optional(target):
+                required = False
+
+        elif is_enum(target):
+            member_types = set()
+            values = []
+            for member in target:
+                member_types.add(type(member.value))
+                values.append(member.value)
+            if len(member_types) == 1:
+                member_type = member_types.pop()
+                if member_type in JSON_ENCODABLE_TYPES:
+                    field_schema.update(JSON_ENCODABLE_TYPES[member_type])
+                else:
+                    field_schema.update(
+                        cls._field_encoders[member_types.pop()].json_schema
+                    )
+            field_schema["enum"] = values
+
+        elif type_name in ("Dict", "Mapping"):
+            field_schema = {"type": "object"}
+            if target.__args__[1] is not Any:
+                field_schema["additionalProperties"] = cls._get_field_schema(
+                    target.__args__[1]
+                )[0]
+
+        elif type_name in ("Sequence", "List") or (
+            type_name == "Tuple" and ... in target.__args__
+        ):
+            field_schema = {"type": "array"}
+            if target.__args__[0] is not Any:
+                field_schema["items"] = cls._get_field_schema(
+                    target.__args__[0]
+                )[0]
+
+        elif type_name == "Tuple":
+            tuple_len = len(target.__args__)
+            # TODO: How do we handle Optional type within lists / tuples
+            field_schema = {
+                "type": "array",
+                "minItems": tuple_len,
+                "maxItems": tuple_len,
+                "items": [
+                    cls._get_field_schema(type_arg)[0]
+                    for type_arg in target.__args__
+                ],
+            }
+
+        elif target in JSON_ENCODABLE_TYPES:
+            field_schema.update(JSON_ENCODABLE_TYPES[target])
+
+        elif target in cls._field_encoders:
+            field_schema.update(cls._field_encoders[target].json_schema)
+
+        elif hasattr(target, "__supertype__"):  # NewType fields
+            field_schema, _ = cls._get_field_schema(target.__supertype__)
+
+        else:
+            warnings.warn(f"Unable to create schema for '{type_name}'")
+        return field_schema, required
+
+    @classmethod
     def _get_field_schema(
         cls, field: Union[Field, Type]
     ) -> Tuple[JsonDict, bool]:
-        field_schema: JsonDict = {"type": "object"}
         required = True
 
         if isinstance(field, Field):
@@ -501,85 +572,15 @@ class JsonSchemaMixin:
             field_meta = FieldMeta()
 
         field_type_name = cls._get_field_type_name(field_type)
-        ref_path = "#/definitions"
 
         if cls._is_json_schema_subclass(field_type):
-            field_schema = {"$ref": "{}/{}".format(ref_path, field_type_name)}
+            field_schema: JsonDict = {
+                "$ref": "#/definitions/{}".format(field_type_name)
+            }
         else:
-            # if Union[..., None] or Optional[...]
-            if field_type_name == "Union":
-                field_schema = {
-                    "oneOf": [
-                        cls._get_field_schema(variant)[0]
-                        for variant in field_type.__args__
-                    ]
-                }
-
-                if is_optional(field_type):
-                    required = False
-
-            elif is_enum(field_type):
-                member_types = set()
-                values = []
-                for member in field_type:
-                    member_types.add(type(member.value))
-                    values.append(member.value)
-                if len(member_types) == 1:
-                    member_type = member_types.pop()
-                    if member_type in JSON_ENCODABLE_TYPES:
-                        field_schema.update(JSON_ENCODABLE_TYPES[member_type])
-                    else:
-                        field_schema.update(
-                            cls._field_encoders[member_types.pop()].json_schema
-                        )
-                field_schema["enum"] = values
-
-            elif field_type_name in ("Dict", "Mapping"):
-                field_schema = {"type": "object"}
-                if field_type.__args__[1] is not Any:
-                    field_schema[
-                        "additionalProperties"
-                    ] = cls._get_field_schema(field_type.__args__[1])[0]
-
-            elif field_type_name in ("Sequence", "List") or (
-                field_type_name == "Tuple" and ... in field_type.__args__
-            ):
-                field_schema = {"type": "array"}
-                if field_type.__args__[0] is not Any:
-                    field_schema["items"] = cls._get_field_schema(
-                        field_type.__args__[0]
-                    )[0]
-
-            elif field_type_name == "Tuple":
-                tuple_len = len(field_type.__args__)
-                # TODO: How do we handle Optional type within lists / tuples
-                field_schema = {
-                    "type": "array",
-                    "minItems": tuple_len,
-                    "maxItems": tuple_len,
-                    "items": [
-                        cls._get_field_schema(type_arg)[0]
-                        for type_arg in field_type.__args__
-                    ],
-                }
-
-            elif field_type in JSON_ENCODABLE_TYPES:
-                field_schema.update(JSON_ENCODABLE_TYPES[field_type])
-
-            elif field_type in cls._field_encoders:
-                field_schema.update(
-                    cls._field_encoders[field_type].json_schema
-                )
-
-            elif hasattr(field_type, "__supertype__"):  # NewType fields
-                field_schema, _ = cls._get_field_schema(
-                    field_type.__supertype__
-                )
-
-            else:
-                warnings.warn(
-                    f"Unable to create schema for '{field_type_name}'"
-                )
+            field_schema, required = cls._get_schema_for_type(
+                field_type, required=required
+            )
 
         field_schema.update(field_meta.as_dict)
 
@@ -687,3 +688,18 @@ class JsonSchemaMixin:
             # The types in the 'typing' module lack the __name__ attribute
             match = re.match(r"typing\.([A-Za-z]+)", str(field_type))
             return str(field_type) if match is None else match.group(1)
+
+    @classmethod
+    def validate(cls, data: Any):
+        try:
+            validator.validate(data, cls.json_schema())
+        except validator.ValidationError as e:
+            raise ValidationError(str(e)) from e
+
+
+def get_type_schema(target: Type, definitions: JsonDict) -> JsonDict:
+    if JsonSchemaMixin._is_json_schema_subclass(target):
+        return target.json_schema()
+
+    JsonSchemaMixin._get_field_definitions(target, definitions)
+    return JsonSchemaMixin._get_schema_for_type(target)[0]
