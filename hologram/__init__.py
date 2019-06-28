@@ -236,6 +236,18 @@ class JsonSchemaMixin:
                         for k, v in val.items()
                     }
 
+            elif field_type_name == "PatternProperty":
+                # TODO: is there some way to set __args__ on this so it can
+                # just re-use Dict/Mapping?
+                def encoder(ft, val, o):
+
+                    return {
+                        cls._encode_field(str, k, o): cls._encode_field(
+                            ft.TARGET_TYPE, v, o
+                        )
+                        for k, v in val.items()
+                    }
+
             elif field_type_name in ("Sequence", "List") or (
                 field_type_name == "Tuple" and ... in field_type.__args__
             ):
@@ -453,6 +465,13 @@ class JsonSchemaMixin:
     def _is_json_schema_subclass(field_type) -> bool:
         return issubclass_safe(field_type, JsonSchemaMixin)
 
+    @staticmethod
+    def _has_definition(field_type) -> bool:
+        return (
+            issubclass_safe(field_type, JsonSchemaMixin)
+            and field_type.__name__ != "PatternProperty"
+        )
+
     @classmethod
     def _get_field_meta(cls, field: Field) -> Tuple[FieldMeta, bool]:
         required = True
@@ -522,6 +541,11 @@ class JsonSchemaMixin:
                 field_schema["additionalProperties"] = cls._get_field_schema(
                     target.__args__[1]
                 )[0]
+        elif type_name == "PatternProperty":
+            field_schema = {"type": "object"}
+            field_schema["patternProperties"] = {
+                ".*": cls._get_field_schema(target.TARGET_TYPE)[0]
+            }
 
         elif type_name in ("Sequence", "List") or (
             type_name == "Tuple" and ... in target.__args__
@@ -573,7 +597,7 @@ class JsonSchemaMixin:
 
         field_type_name = cls._get_field_type_name(field_type)
 
-        if cls._is_json_schema_subclass(field_type):
+        if cls._has_definition(field_type):
             field_schema: JsonDict = {
                 "$ref": "#/definitions/{}".format(field_type_name)
             }
@@ -597,6 +621,8 @@ class JsonSchemaMixin:
             cls._get_field_definitions(field_type.__args__[0], definitions)
         elif field_type_name in ("Dict", "Mapping"):
             cls._get_field_definitions(field_type.__args__[1], definitions)
+        elif field_type_name == "PatternProperty":
+            cls._get_field_definitions(field_type.TARGET_TYPE, definitions)
         elif field_type_name == "Union":
             for variant in field_type.__args__:
                 cls._get_field_definitions(variant, definitions)
@@ -695,6 +721,55 @@ class JsonSchemaMixin:
             validator.validate(data, cls.json_schema())
         except validator.ValidationError as e:
             raise ValidationError(str(e)) from e
+
+
+def NewPatternProperty(name: str, target: T) -> Type[Dict[str, T]]:
+    definitions: JsonDict = {}
+    properties = get_type_schema(target, definitions)
+
+    class PatternProperty(Dict[str, target], JsonSchemaMixin):
+        # TODO: Why can't I get a type that has a populated __args__?
+        TARGET_TYPE = target
+
+        @classmethod
+        def json_schema(cls, embeddable: bool = False) -> JsonDict:
+            schema = {
+                "type": "object",
+                "additionalProperties": False,
+                "patternProperties": {".*": properties},
+            }
+            if definitions:
+                schema["definitions"] = definitions
+            return schema
+
+        def to_dict(
+            self, omit_none: bool = True, validate: bool = False
+        ) -> JsonDict:
+            data = {}
+            for key, value in self.items():
+                value = self._encode_field(target, value, omit_none)
+                if omit_none and value is None:
+                    continue
+                data[key] = value
+
+            if validate:
+                self.validate(data)
+            return data
+
+        @classmethod
+        def from_dict(cls: Type[T], data: JsonDict, validate=True) -> T:
+            """Returns a dataclass instance with all nested classes converted from the dict given"""
+
+            if validate:
+                cls.validate(data)
+
+            self = cls()
+            for key, value in data.items():
+                self[key] = cls._decode_field(key, target, value)
+
+            return self
+
+    return PatternProperty
 
 
 def get_type_schema(target: Type, definitions: JsonDict) -> JsonDict:
