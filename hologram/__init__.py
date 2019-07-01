@@ -723,7 +723,7 @@ class JsonSchemaMixin:
             raise ValidationError(str(e)) from e
 
 
-def NewPatternProperty(name: str, target: T) -> Type[Dict[str, T]]:
+def NewPatternProperty(target: T) -> Type[Dict[str, T]]:
     definitions: JsonDict = {}
     properties = get_type_schema(target, definitions)
 

@@ -12,9 +12,9 @@ class Foo(JsonSchemaMixin):
     b: int
 
 
-Bar = NewPatternProperty("Bar", Foo)
+Bar = NewPatternProperty(Foo)
 
-Baz = NewPatternProperty("Baz", Union[Foo, List[Foo], str])
+Baz = NewPatternProperty(Union[Foo, List[Foo], str])
 
 
 @dataclass
