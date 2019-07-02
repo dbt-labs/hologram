@@ -1,9 +1,9 @@
 import pytest
 
-from dataclasses import dataclass, field, MISSING
+from dataclasses import dataclass
 from hologram import JsonSchemaMixin, ValidationError
 from hologram.helpers import StrEnum, StrLiteral
-from typing import Optional
+from typing import Optional, Union, List
 
 
 class Stage(StrEnum):
@@ -63,3 +63,94 @@ def test_inferred_class():
         ),
         StageTwoFoo,
     )
+
+
+@dataclass
+class Thing(JsonSchemaMixin):
+    a: str
+
+
+@dataclass
+class OtherThing(JsonSchemaMixin):
+    b: str
+    c: str
+
+
+@dataclass
+class MoreThings(JsonSchemaMixin):
+    d: str
+    e: str
+
+
+@dataclass
+class Unioned(JsonSchemaMixin):
+    unioned: List[Union[Thing, OtherThing, MoreThings]]
+
+
+@dataclass
+class Nested(JsonSchemaMixin):
+    first: Thing
+    top: List[Union[List[Thing], Thing, OtherThing, List[MoreThings]]]
+
+
+def test_tricky_unions():
+    dcts = {
+        "unioned": [
+            {"a": "Thing"},
+            {"b": "hi", "c": "OtherThing"},
+            {"a": "Thing2"},
+        ]
+    }
+    expected = [
+        Thing(a="Thing"),
+        OtherThing(b="hi", c="OtherThing"),
+        Thing(a="Thing2"),
+    ]
+    assert Unioned.from_dict(dcts).unioned == expected
+
+
+def test_nested_ok():
+    nested = {
+        "first": {"a": "Thing"},
+        "top": [
+            [{"a": "Thing"}],
+            {"a": "Thing"},
+            {"b": "OtherThing", "c": "stuff"},
+            [{"d": "MoreThings", "e": "more stuff"}],
+        ],
+    }
+    expected = [
+        [Thing(a="Thing")],
+        Thing(a="Thing"),
+        OtherThing(b="OtherThing", c="stuff"),
+        [MoreThings(d="MoreThings", e="more stuff")],
+    ]
+    result = Nested.from_dict(nested)
+    assert result.top == expected
+    assert result.first == Thing(a="Thing")
+
+
+def test_bad_nested():
+    bad_nested = {
+        "first": {"a": "Thing"},
+        "top": [
+            [{"a": 1}],
+            {"a": "Thing"},
+            {"b": "OtherThing", "c": "stuff"},
+            [{"d": "MoreThings", "e": "more stuff"}],
+        ],
+    }
+    with pytest.raises(ValidationError):
+        Nested.from_dict(bad_nested)
+
+    bad_nested_2 = {
+        "first": {"a": 1},
+        "top": [
+            [{"a": "Thing"}],
+            {"a": "Thing"},
+            {"b": "OtherThing", "c": "stuff"},
+            [{"d": "MoreThings", "e": "more stuff"}],
+        ],
+    }
+    with pytest.raises(ValidationError):
+        Nested.from_dict(bad_nested)

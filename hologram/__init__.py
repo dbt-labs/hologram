@@ -320,7 +320,9 @@ class JsonSchemaMixin:
         return data
 
     @classmethod
-    def _decode_field(cls, field: str, field_type: Any, value: Any) -> Any:
+    def _decode_field(
+        cls, field: str, field_type: Any, value: Any, validate: bool
+    ) -> Any:
         if value is None:
             return None
         decoder = None
@@ -339,22 +341,31 @@ class JsonSchemaMixin:
             if cls._is_json_schema_subclass(field_type):
 
                 def decoder(_, ft, val):
-                    return ft.from_dict(val, validate=False)
+                    return ft.from_dict(val, validate=validate)
 
             elif is_optional(field_type):
 
                 def decoder(f, ft, val):
-                    return cls._decode_field(f, ft.__args__[0], val)
+                    return cls._decode_field(f, ft.__args__[0], val, validate)
 
             elif field_type_name == "Union":
                 # Attempt to decode the value using each decoder in turn
                 decoded = None
+                union_excs = (
+                    AttributeError,
+                    TypeError,
+                    ValueError,
+                    ValidationError,
+                )
 
                 for variant in field_type.__args__:
                     try:
-                        decoded = cls._decode_field(field, variant, value)
+                        # we have to re-validate whatever we decode here
+                        decoded = cls._decode_field(
+                            field, variant, value, True
+                        )
                         break
-                    except (AttributeError, TypeError, ValueError):
+                    except union_excs:
                         continue
 
                 if decoded is not None:
@@ -365,8 +376,8 @@ class JsonSchemaMixin:
                 def decoder(f, ft, val):
                     return {
                         cls._decode_field(
-                            f, ft.__args__[0], k
-                        ): cls._decode_field(f, ft.__args__[1], v)
+                            f, ft.__args__[0], k, validate
+                        ): cls._decode_field(f, ft.__args__[1], v, validate)
                         for k, v in val.items()
                     }
 
@@ -377,21 +388,24 @@ class JsonSchemaMixin:
 
                 def decoder(f, ft, val):
                     return seq_type(
-                        cls._decode_field(f, ft.__args__[0], v) for v in val
+                        cls._decode_field(f, ft.__args__[0], v, validate)
+                        for v in val
                     )
 
             elif field_type_name == "Tuple":
 
                 def decoder(f, ft, val):
                     return tuple(
-                        cls._decode_field(f, ft.__args__[idx], v)
+                        cls._decode_field(f, ft.__args__[idx], v, validate)
                         for idx, v in enumerate(val)
                     )
 
             elif hasattr(field_type, "__supertype__"):  # NewType field
 
                 def decoder(f, ft, val):
-                    return cls._decode_field(f, ft.__supertype__, val)
+                    return cls._decode_field(
+                        f, ft.__supertype__, val, validate
+                    )
 
             elif is_enum(field_type):
 
@@ -449,7 +463,7 @@ class JsonSchemaMixin:
                 field.default == MISSING and field.default_factory == MISSING
             ):  # type: ignore
                 values[field.name] = cls._decode_field(
-                    field.name, field.type, data.get(target_field)
+                    field.name, field.type, data.get(target_field), validate
                 )
 
         # Need to ignore the type error here, since mypy doesn't know that
@@ -759,13 +773,13 @@ def NewPatternProperty(target: T) -> Type[Dict[str, T]]:
         @classmethod
         def from_dict(cls: Type[T], data: JsonDict, validate=True) -> T:
             """Returns a dataclass instance with all nested classes converted from the dict given"""
-
             if validate:
                 cls.validate(data)
 
             self = cls()
             for key, value in data.items():
-                self[key] = cls._decode_field(key, target, value)
+                # we've already validated our schema
+                self[key] = cls._decode_field(key, target, value, False)
 
             return self
 
