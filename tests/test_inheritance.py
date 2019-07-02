@@ -107,6 +107,7 @@ def test_tricky_unions():
         Thing(a="Thing2"),
     ]
     assert Unioned.from_dict(dcts).unioned == expected
+    assert Unioned.from_dict(dcts).to_dict() == dcts
 
 
 def test_nested_ok():
@@ -128,6 +129,8 @@ def test_nested_ok():
     result = Nested.from_dict(nested)
     assert result.top == expected
     assert result.first == Thing(a="Thing")
+
+    assert Nested.from_dict(nested).to_dict() == nested
 
 
 def test_bad_nested():

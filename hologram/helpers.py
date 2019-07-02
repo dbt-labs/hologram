@@ -48,5 +48,10 @@ class ExtensibleJsonSchemaMixin(JsonSchemaMixin):
     @classmethod
     def json_schema(cls, embeddable: bool = False) -> JsonDict:
         dct = super().json_schema(embeddable=embeddable)
-        dct["additionalProperties"] = True
+        cls._schema[cls.__name__]["additionalProperties"] = True
+
+        if embeddable:
+            dct[cls.__name__]["additionalProperties"] = True
+        else:
+            dct["additionalProperties"] = True
         return dct
