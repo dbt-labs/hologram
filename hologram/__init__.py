@@ -757,58 +757,6 @@ class JsonSchemaMixin:
             raise ValidationError(str(e)) from e
 
 
-def NewPatternProperty(target: T) -> Type[Dict[str, T]]:
-    class PatternProperty(Dict[str, target], JsonSchemaMixin):
-        # TODO: Why can't I get a type that has a populated __args__?
-        TARGET_TYPE = target
-
-        @classmethod
-        def _collect_json_schema(cls, definitions: JsonDict) -> JsonDict:
-            if cls._is_json_schema_subclass(cls.TARGET_TYPE):
-                properties = cls.TARGET_TYPE._schema_from_cache(definitions)
-            else:
-                cls._get_field_definitions(cls.TARGET_TYPE, definitions)
-                properties = cls._get_schema_for_type(cls.TARGET_TYPE)[0]
-
-            schema = {
-                "type": "object",
-                "additionalProperties": False,
-                "patternProperties": {".*": properties},
-            }
-            return schema
-
-        def to_dict(
-            self, omit_none: bool = True, validate: bool = False
-        ) -> JsonDict:
-            data = {}
-            for key, value in self.items():
-                value = self._encode_field(target, value, omit_none)
-                if omit_none and value is None:
-                    continue
-                data[key] = value
-
-            if validate:
-                self.validate(data)
-            return data
-
-        @classmethod
-        def from_dict(cls: Type[T], data: JsonDict, validate=True) -> T:
-            """Returns a dataclass instance with all nested classes converted
-            from the dict given
-            """
-            if validate:
-                cls.validate(data)
-
-            self = cls()
-            for key, value in data.items():
-                # we've already validated our schema
-                self[key] = cls._decode_field(key, target, value, False)
-
-            return self
-
-    return PatternProperty
-
-
 def get_type_schema(target: Type, definitions: JsonDict) -> JsonDict:
     if JsonSchemaMixin._is_json_schema_subclass(target):
         return target.json_schema()
