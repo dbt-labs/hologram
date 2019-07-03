@@ -12,7 +12,12 @@ class Foo(JsonSchemaMixin):
     b: int
 
 
-Bar = NewPatternProperty(Foo)
+@dataclass
+class WrappedFoo(JsonSchemaMixin):
+    inner: Foo
+
+
+Bar = NewPatternProperty(WrappedFoo)
 
 Baz = NewPatternProperty(Union[Foo, List[Foo], str])
 
@@ -36,14 +41,17 @@ def foo_dict():
 @pytest.fixture
 def bar():
     b = Bar()
-    b["first"] = Foo("one", 1)
-    b["second"] = Foo("two", 2)
+    b["first"] = WrappedFoo(inner=Foo("one", 1))
+    b["second"] = WrappedFoo(inner=Foo("two", 2))
     return b
 
 
 @pytest.fixture
 def bar_dict():
-    return {"first": {"a": "one", "b": 1}, "second": {"a": "two", "b": 2}}
+    return {
+        "first": {"inner": {"a": "one", "b": 1}},
+        "second": {"inner": {"a": "two", "b": 2}},
+    }
 
 
 @pytest.fixture

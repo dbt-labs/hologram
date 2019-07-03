@@ -46,12 +46,7 @@ class HyphenatedJsonSchemaMixin(JsonSchemaMixin):
 
 class ExtensibleJsonSchemaMixin(JsonSchemaMixin):
     @classmethod
-    def json_schema(cls, embeddable: bool = False) -> JsonDict:
-        dct = super().json_schema(embeddable=embeddable)
-        cls._schema[cls.__name__]["additionalProperties"] = True
-
-        if embeddable:
-            dct[cls.__name__]["additionalProperties"] = True
-        else:
-            dct["additionalProperties"] = True
+    def _collect_json_schema(cls, definitions: JsonDict) -> JsonDict:
+        dct = super()._collect_json_schema(definitions=definitions)
+        dct["additionalProperties"] = True
         return dct
