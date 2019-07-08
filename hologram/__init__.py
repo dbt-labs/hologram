@@ -264,7 +264,6 @@ class JsonSchemaMixin:
                         cls._encode_field(ft.__args__[idx], v, o)
                         for idx, v in enumerate(val)
                     ]
-
             elif cls._is_json_schema_subclass(field_type):
                 # Only need to validate at the top level
                 def encoder(_, v, o):
@@ -418,7 +417,7 @@ class JsonSchemaMixin:
                     return cls._field_encoders[ft].to_python(val)
 
             if decoder is None:
-                warnings.warn(
+                raise ValidationError(
                     f"Unable to decode value for '{field}: {field_type_name}'"
                 )
                 return value
@@ -593,7 +592,7 @@ class JsonSchemaMixin:
             field_schema, _ = cls._get_field_schema(target.__supertype__)
 
         else:
-            warnings.warn(f"Unable to create schema for '{type_name}'")
+            raise ValidationError(f"Unable to create schema for '{type_name}'")
         return field_schema, required
 
     @classmethod
