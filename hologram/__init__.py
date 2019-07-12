@@ -34,7 +34,7 @@ JsonEncodable = Union[int, float, str, bool, type(None)]
 JsonDict = Dict[str, Any]
 
 
-class ValidationError(Exception):
+class ValidationError(validator.ValidationError):
     pass
 
 
@@ -733,8 +733,8 @@ class JsonSchemaMixin:
     def validate(cls, data: Any):
         try:
             validator.validate(data, cls.json_schema())
-        except validator.ValidationError as e:
-            raise ValidationError(str(e)) from e
+        except validator.ValidationError as exc:
+            raise ValidationError.create_from(exc) from exc
 
 
 def NewPatternProperty(target: T) -> Type[Dict[str, T]]:
