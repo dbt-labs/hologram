@@ -20,7 +20,7 @@ from enum import Enum
 import warnings
 
 from dateutil.parser import parse
-import jsonschema as validator
+import jsonschema
 
 JSON_ENCODABLE_TYPES = {
     str: {"type": "string"},
@@ -34,7 +34,7 @@ JsonEncodable = Union[int, float, str, bool, type(None)]
 JsonDict = Dict[str, Any]
 
 
-class ValidationError(Exception):
+class ValidationError(jsonschema.ValidationError):
     pass
 
 
@@ -140,6 +140,13 @@ class FieldMeta:
             for k, v in asdict(self).items()
             if v is not None
         }
+
+
+@functools.lru_cache()
+def _validate_schema(schema_cls):
+    schema = schema_cls.json_schema()
+    jsonschema.Draft7Validator.check_schema(schema)
+    return schema
 
 
 class JsonSchemaMixin:
@@ -731,10 +738,11 @@ class JsonSchemaMixin:
 
     @classmethod
     def validate(cls, data: Any):
-        try:
-            validator.validate(data, cls.json_schema())
-        except validator.ValidationError as e:
-            raise ValidationError(str(e)) from e
+        schema = _validate_schema(cls)
+        validator = jsonschema.Draft7Validator(schema)
+        error = jsonschema.exceptions.best_match(validator.iter_errors(data))
+        if error is not None:
+            raise ValidationError.create_from(error) from error
 
 
 def NewPatternProperty(target: T) -> Type[Dict[str, T]]:
