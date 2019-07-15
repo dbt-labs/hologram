@@ -20,7 +20,7 @@ from enum import Enum
 import warnings
 
 from dateutil.parser import parse
-import jsonschema as validator
+import jsonschema
 
 JSON_ENCODABLE_TYPES = {
     str: {"type": "string"},
@@ -34,7 +34,7 @@ JsonEncodable = Union[int, float, str, bool, type(None)]
 JsonDict = Dict[str, Any]
 
 
-class ValidationError(validator.ValidationError):
+class ValidationError(jsonschema.ValidationError):
     pass
 
 
@@ -140,6 +140,13 @@ class FieldMeta:
             for k, v in asdict(self).items()
             if v is not None
         }
+
+
+@functools.lru_cache()
+def _validate_schema(schema_cls):
+    schema = schema_cls.json_schema()
+    jsonschema.Draft7Validator.check_schema(schema)
+    return schema
 
 
 class JsonSchemaMixin:
@@ -426,7 +433,7 @@ class JsonSchemaMixin:
         return decoder(field, field_type, value)
 
     @classmethod
-    def _find_matching_validator(cls: Type[T], data: JsonDict) -> T:
+    def _find_matching_jsonschema(cls: Type[T], data: JsonDict) -> T:
         if cls is not JsonSchemaMixin:
             raise NotImplementedError
 
@@ -441,7 +448,7 @@ class JsonSchemaMixin:
                 continue
 
         if decoded is None:
-            raise ValidationError("No matching validator for data.")
+            raise ValidationError("No matching jsonschema for data.")
 
         return decoded
 
@@ -449,7 +456,7 @@ class JsonSchemaMixin:
     def from_dict(cls: Type[T], data: JsonDict, validate=True) -> T:
         """Returns a dataclass instance with all nested classes converted from the dict given"""
         if cls is JsonSchemaMixin:
-            return cls._find_matching_validator(data)
+            return cls._find_matching_jsonschema(data)
 
         init_values: Dict[str, Any] = {}
         non_init_values: Dict[str, Any] = {}
@@ -731,10 +738,11 @@ class JsonSchemaMixin:
 
     @classmethod
     def validate(cls, data: Any):
-        try:
-            validator.validate(data, cls.json_schema())
-        except validator.ValidationError as exc:
-            raise ValidationError.create_from(exc) from exc
+        schema = _validate_schema(cls)
+        validator = jsonschema.Draft7Validator(schema)
+        error = jsonschema.exceptions.best_match(validator.iter_errors(data))
+        if error is not None:
+            raise ValidationError.create_from(error) from error
 
 
 def NewPatternProperty(target: T) -> Type[Dict[str, T]]:
