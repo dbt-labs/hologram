@@ -433,7 +433,7 @@ class JsonSchemaMixin:
         return decoder(field, field_type, value)
 
     @classmethod
-    def _find_matching_jsonschema(cls: Type[T], data: JsonDict) -> T:
+    def _find_matching_validator(cls: Type[T], data: JsonDict) -> T:
         if cls is not JsonSchemaMixin:
             raise NotImplementedError
 
@@ -448,7 +448,7 @@ class JsonSchemaMixin:
                 continue
 
         if decoded is None:
-            raise ValidationError("No matching jsonschema for data.")
+            raise ValidationError("No matching validator for data.")
 
         return decoded
 
@@ -456,7 +456,7 @@ class JsonSchemaMixin:
     def from_dict(cls: Type[T], data: JsonDict, validate=True) -> T:
         """Returns a dataclass instance with all nested classes converted from the dict given"""
         if cls is JsonSchemaMixin:
-            return cls._find_matching_jsonschema(data)
+            return cls._find_matching_validator(data)
 
         init_values: Dict[str, Any] = {}
         non_init_values: Dict[str, Any] = {}
