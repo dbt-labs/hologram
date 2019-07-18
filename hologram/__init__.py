@@ -665,6 +665,60 @@ class JsonSchemaMixin:
         return definitions
 
     @classmethod
+    def _cache_definitions(cls) -> JsonDict:
+        definitions: JsonDict = {}
+
+        if cls._definitions is None:
+            cls._definitions = {cls.__name__: definitions}
+        elif cls.__name__ not in cls._definitions:
+            cls._definitions[cls.__name__] = definitions
+        else:
+            definitions = cls._definitions[cls.__name__]
+        return definitions
+
+    @classmethod
+    def _cache_schema(cls, schema: JsonDict) -> None:
+        if cls._schema is None:
+            cls._schema = {}
+
+        cls._schema[cls.__name__] = schema
+
+    @classmethod
+    def _collect_json_schema(cls, definitions: JsonDict) -> JsonDict:
+        """Return the schema dictionary and update the definitions dictionary
+        for this class.
+        """
+        properties = {}
+        required = []
+        for field, target_field in cls._get_fields():
+            properties[target_field], is_required = cls._get_field_schema(
+                field
+            )
+            cls._get_field_definitions(field.type, definitions)
+            if is_required:
+                required.append(target_field)
+
+        schema = {
+            "type": "object",
+            "required": required,
+            "properties": properties,
+            "additionalProperties": False,
+        }
+        if cls.__doc__:
+            schema["description"] = cls.__doc__
+        return schema
+
+    @classmethod
+    def _schema_from_cache(cls, definitions: JsonDict) -> JsonDict:
+
+        if cls._schema is not None and cls.__name__ in cls._schema:
+            schema = cls._schema[cls.__name__]
+        else:
+            schema = cls._collect_json_schema(definitions)
+            cls._cache_schema(schema)
+        return schema
+
+    @classmethod
     def json_schema(cls, embeddable: bool = False) -> JsonDict:
         """Returns the JSON schema for the dataclass, along with the schema of any nested dataclasses
         within the 'definitions' field.
@@ -679,42 +733,8 @@ class JsonSchemaMixin:
             )
             return cls.all_json_schemas()
 
-        definitions: JsonDict = {}
-
-        if cls._definitions is None:
-            cls._definitions = {cls.__name__: definitions}
-        elif cls.__name__ not in cls._definitions:
-            cls._definitions[cls.__name__] = definitions
-        else:
-            definitions = cls._definitions[cls.__name__]
-
-        if cls._schema is not None and cls.__name__ in cls._schema:
-            schema = cls._schema[cls.__name__]
-
-        else:
-            properties = {}
-            required = []
-            for field, target_field in cls._get_fields():
-                properties[target_field], is_required = cls._get_field_schema(
-                    field
-                )
-                cls._get_field_definitions(field.type, definitions)
-                if is_required:
-                    required.append(target_field)
-            schema = {
-                "type": "object",
-                "required": required,
-                "properties": properties,
-                "additionalProperties": False,
-            }
-
-            if cls.__doc__:
-                schema["description"] = cls.__doc__
-
-            if cls._schema is None:
-                cls._schema = {}
-
-            cls._schema[cls.__name__] = schema
+        definitions: JsonDict = cls._cache_definitions()
+        schema: JsonDict = cls._schema_from_cache(definitions)
 
         if embeddable:
             return {**definitions, cls.__name__: schema}
@@ -743,55 +763,6 @@ class JsonSchemaMixin:
         error = jsonschema.exceptions.best_match(validator.iter_errors(data))
         if error is not None:
             raise ValidationError.create_from(error) from error
-
-
-def NewPatternProperty(target: T) -> Type[Dict[str, T]]:
-    definitions: JsonDict = {}
-    properties = get_type_schema(target, definitions)
-
-    class PatternProperty(Dict[str, target], JsonSchemaMixin):
-        # TODO: Why can't I get a type that has a populated __args__?
-        TARGET_TYPE = target
-
-        @classmethod
-        def json_schema(cls, embeddable: bool = False) -> JsonDict:
-            schema = {
-                "type": "object",
-                "additionalProperties": False,
-                "patternProperties": {".*": properties},
-            }
-            if definitions:
-                schema["definitions"] = definitions
-            return schema
-
-        def to_dict(
-            self, omit_none: bool = True, validate: bool = False
-        ) -> JsonDict:
-            data = {}
-            for key, value in self.items():
-                value = self._encode_field(target, value, omit_none)
-                if omit_none and value is None:
-                    continue
-                data[key] = value
-
-            if validate:
-                self.validate(data)
-            return data
-
-        @classmethod
-        def from_dict(cls: Type[T], data: JsonDict, validate=True) -> T:
-            """Returns a dataclass instance with all nested classes converted from the dict given"""
-            if validate:
-                cls.validate(data)
-
-            self = cls()
-            for key, value in data.items():
-                # we've already validated our schema
-                self[key] = cls._decode_field(key, target, value, False)
-
-            return self
-
-    return PatternProperty
 
 
 def get_type_schema(target: Type, definitions: JsonDict) -> JsonDict:
