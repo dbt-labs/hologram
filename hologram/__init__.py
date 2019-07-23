@@ -425,6 +425,11 @@ class JsonSchemaMixin:
                 def decoder(_, ft, val):
                     return ft(val)
 
+            elif field_type is Any:
+
+                def decoder(_, __, val):
+                    return val
+
             if decoder is None:
                 raise ValidationError(
                     f"Unable to decode value for '{field}: {field_type_name}'"
