@@ -345,7 +345,13 @@ class JsonSchemaMixin:
                 cls._decode_cache = {}
             # Replace any nested dictionaries with their targets
             field_type_name = cls._get_field_type_name(field_type)
-            if cls._is_json_schema_subclass(field_type):
+
+            if field_type in cls._field_encoders:
+
+                def decoder(_, ft, val):
+                    return cls._field_encoders[ft].to_python(val)
+
+            elif cls._is_json_schema_subclass(field_type):
 
                 def decoder(_, ft, val):
                     return ft.from_dict(val, validate=validate)
@@ -419,13 +425,8 @@ class JsonSchemaMixin:
                 def decoder(_, ft, val):
                     return ft(val)
 
-            elif field_type in cls._field_encoders:
-
-                def decoder(_, ft, val):
-                    return cls._field_encoders[ft].to_python(val)
-
             if decoder is None:
-                warnings.warn(
+                raise ValidationError(
                     f"Unable to decode value for '{field}: {field_type_name}'"
                 )
                 return value
@@ -528,8 +529,12 @@ class JsonSchemaMixin:
         field_schema: JsonDict = {"type": "object"}
 
         type_name = cls._get_field_type_name(target)
+
+        if target in cls._field_encoders:
+            field_schema.update(cls._field_encoders[target].json_schema)
+
         # if Union[..., None] or Optional[...]
-        if type_name == "Union":
+        elif type_name == "Union":
             field_schema = {
                 "oneOf": [
                     cls._get_field_schema(variant)[0]
@@ -593,14 +598,11 @@ class JsonSchemaMixin:
         elif target in JSON_ENCODABLE_TYPES:
             field_schema.update(JSON_ENCODABLE_TYPES[target])
 
-        elif target in cls._field_encoders:
-            field_schema.update(cls._field_encoders[target].json_schema)
-
         elif hasattr(target, "__supertype__"):  # NewType fields
             field_schema, _ = cls._get_field_schema(target.__supertype__)
 
         else:
-            warnings.warn(f"Unable to create schema for '{type_name}'")
+            raise ValidationError(f"Unable to create schema for '{type_name}'")
         return field_schema, required
 
     @classmethod
