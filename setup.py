@@ -1,6 +1,12 @@
 from setuptools import setup
 
-requires = ["python-dateutil", "jsonschema", 'dataclasses;python_version<"3.7"']
+requires = [
+    "python-dateutil",
+    "jsonschema",
+    'dataclasses;python_version<"3.7"',
+]
+
+package_version = "0.0.1"
 
 
 def read(f):
@@ -13,6 +19,7 @@ setup(
     long_description=read("README.md"),
     packages=["hologram"],
     package_data={"hologram": ["py.typed"]},
+    version=package_version,
     author="Connor McArthur, Jacob Beck, Simon Knibbs",
     author_email="info@fishtowanalytics.com, simon.knibbs@gmail.com",
     url="https://github.com/fishtown-analytics/hologram",
@@ -20,7 +27,6 @@ setup(
     setup_requires=["pytest-runner", "setuptools_scm"],
     tests_require=["pytest", "flake8", "mypy"],
     license="MIT",
-    use_scm_version=True,
     classifiers=[
         "Development Status :: 4 - Beta",
         "Intended Audience :: Developers",
