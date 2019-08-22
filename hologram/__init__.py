@@ -149,6 +149,78 @@ def _validate_schema(schema_cls):
     return schema
 
 
+# a restriction is a list of Field, str pairs
+Restriction = List[Tuple[Field, str]]
+# a restricted variant is a pair of an object that has fields with restrictions
+# and those restrictions. Only JsonSchemaMixin subclasses may have restrictied
+# fields.
+RestrictedVariant = Tuple[Type[T], Restriction]
+
+
+def _get_restrictions(variant_type: Type) -> Restriction:
+    """Return a list of all restrictions on the given variant of a union, in
+    the form of a Field, name pair, where `name` is the field's name in json
+    and the Field is the dataclass-level field name.
+
+    If the variant isn't a JsonSchemaMixin subclass, there are no restrictions.
+    """
+    if not issubclass_safe(variant_type, JsonSchemaMixin):
+        return []
+    restrictions: Restriction = []
+    for field, target_name in variant_type._get_fields():
+        if field.metadata and "restrict" in field.metadata:
+            restrictions.append((field, target_name))
+    return restrictions
+
+
+def get_union_fields(
+    field_type: Union
+) -> Tuple[List[Any], List[RestrictedVariant]]:
+    """
+    Unions have a __args__ that is all their variants (after typing's
+    type-collapsing magic has run, so caveat emptor...)
+
+    JsonSchemaMixin dataclasses have `Field`s, returned by the `_get_fields`
+    method.
+
+    This method returns a tuple of two lists for any given union:
+         - the first is all of the variant types that have no restrictions,
+           which includes any primitives and any unrestricted fields
+         - the second is all of the variant types that have restrictions, and
+           their restrictions
+    """
+    unrestricted: List[Any] = []
+    restricted: List[RestrictedVariant] = []
+    for variant in field_type.__args__:
+        restrictions = _get_restrictions(variant)
+        if restrictions:
+            restricted.append((variant, restrictions))
+        else:
+            unrestricted.append(variant)
+    return restricted, unrestricted
+
+
+def _encode_restrictions_met(
+    value: Any, restrict_fields: List[Tuple[Field, str]]
+) -> bool:
+    return all(
+        (
+            hasattr(value, f.name)
+            and getattr(value, f.name) in f.metadata["restrict"]
+        )
+        for f, _ in restrict_fields
+    )
+
+
+def _decode_restrictions_met(
+    value: Any, restrict_fields: List[Tuple[Field, str]]
+) -> bool:
+    return all(
+        n in value and value[n] in f.metadata["restrict"]
+        for f, n in restrict_fields
+    )
+
+
 class JsonSchemaMixin:
     """Mixin which adds methods to generate a JSON schema and
     convert to and from JSON encodable dicts with validation against the schema
@@ -219,8 +291,12 @@ class JsonSchemaMixin:
                 # Attempt to encode the field with each union variant.
                 # TODO: Find a more reliable method than this since in the case 'Union[List[str], Dict[str, int]]' this
                 # will just output the dict keys as a list
+                restricted, unrestricted = get_union_fields(field_type)
+                for variant, restrict_fields in restricted:
+                    if _encode_restrictions_met(value, restrict_fields):
+                        return cls._encode_field(variant, value, omit_none)
                 encoded = None
-                for variant in field_type.__args__:
+                for variant in unrestricted:
                     try:
                         encoded = cls._encode_field(variant, value, omit_none)
                         break
@@ -363,7 +439,6 @@ class JsonSchemaMixin:
 
             elif field_type_name == "Union":
                 # Attempt to decode the value using each decoder in turn
-                decoded = None
                 union_excs = (
                     AttributeError,
                     TypeError,
@@ -371,18 +446,19 @@ class JsonSchemaMixin:
                     ValidationError,
                 )
 
-                for variant in field_type.__args__:
+                restricted, unrestricted = get_union_fields(field_type)
+                for variant, restrict_fields in restricted:
+                    if _decode_restrictions_met(value, restrict_fields):
+                        return cls._decode_field(
+                            field, variant, value, validate
+                        )
+
+                for variant in unrestricted:
                     try:
                         # we have to re-validate whatever we decode here
-                        decoded = cls._decode_field(
-                            field, variant, value, True
-                        )
-                        break
+                        return cls._decode_field(field, variant, value, True)
                     except union_excs:
                         continue
-
-                if decoded is not None:
-                    return decoded
 
             elif field_type_name in ("Mapping", "Dict"):
 
@@ -527,8 +603,43 @@ class JsonSchemaMixin:
         return field_meta, required
 
     @classmethod
+    def _encode_restrictions(
+        cls, restrictions: Union[List[Any], Enum]
+    ) -> JsonDict:
+        field_schema: JsonDict = {}
+        member_types = set()
+        values = []
+        for member in restrictions:
+            if isinstance(member, Enum):
+                value = member.value
+            else:
+                value = member
+            member_types.add(type(value))
+            values.append(value)
+        if len(member_types) == 1:
+            member_type = member_types.pop()
+            if member_type in JSON_ENCODABLE_TYPES:
+                field_schema.update(JSON_ENCODABLE_TYPES[member_type])
+            else:
+                field_schema.update(
+                    cls._field_encoders[member_type].json_schema
+                )
+        else:
+            # hologram used to silently do nothing here, which seems worse
+            raise ValidationError(
+                "Invalid schema defined: Found multiple member types - {!s}".format(
+                    member_types
+                )
+            )
+        field_schema["enum"] = values
+        return field_schema
+
+    @classmethod
     def _get_schema_for_type(
-        cls, target: Type, required: bool = True
+        cls,
+        target: Type,
+        required: bool = True,
+        restrictions: Optional[List[Any]] = None,
     ) -> Tuple[JsonDict, bool]:
 
         field_schema: JsonDict = {"type": "object"}
@@ -537,6 +648,9 @@ class JsonSchemaMixin:
 
         if target in cls._field_encoders:
             field_schema.update(cls._field_encoders[target].json_schema)
+
+        elif restrictions:
+            field_schema.update(cls._encode_restrictions(restrictions))
 
         # if Union[..., None] or Optional[...]
         elif type_name == "Union":
@@ -551,20 +665,7 @@ class JsonSchemaMixin:
                 required = False
 
         elif is_enum(target):
-            member_types = set()
-            values = []
-            for member in target:
-                member_types.add(type(member.value))
-                values.append(member.value)
-            if len(member_types) == 1:
-                member_type = member_types.pop()
-                if member_type in JSON_ENCODABLE_TYPES:
-                    field_schema.update(JSON_ENCODABLE_TYPES[member_type])
-                else:
-                    field_schema.update(
-                        cls._field_encoders[member_types.pop()].json_schema
-                    )
-            field_schema["enum"] = values
+            field_schema.update(cls._encode_restrictions(target))
 
         elif type_name in ("Dict", "Mapping"):
             field_schema = {"type": "object"}
@@ -615,10 +716,13 @@ class JsonSchemaMixin:
         cls, field: Union[Field, Type]
     ) -> Tuple[JsonDict, bool]:
         required = True
+        restrictions = None
 
         if isinstance(field, Field):
             field_type = field.type
             field_meta, required = cls._get_field_meta(field)
+            if field.metadata is not None:
+                restrictions = field.metadata.get("restrict")
         else:
             field_type = field
             field_meta = FieldMeta()
@@ -631,7 +735,7 @@ class JsonSchemaMixin:
             }
         else:
             field_schema, required = cls._get_schema_for_type(
-                field_type, required=required
+                field_type, required=required, restrictions=restrictions
             )
 
         field_schema.update(field_meta.as_dict)
@@ -770,11 +874,3 @@ class JsonSchemaMixin:
         error = jsonschema.exceptions.best_match(validator.iter_errors(data))
         if error is not None:
             raise ValidationError.create_from(error) from error
-
-
-def get_type_schema(target: Type, definitions: JsonDict) -> JsonDict:
-    if JsonSchemaMixin._is_json_schema_subclass(target):
-        return target.json_schema()
-
-    JsonSchemaMixin._get_field_definitions(target, definitions)
-    return JsonSchemaMixin._get_schema_for_type(target)[0]
