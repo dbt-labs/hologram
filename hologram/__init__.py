@@ -166,7 +166,7 @@ def _get_restrictions(variant_type: Type) -> Restriction:
     """
     if not issubclass_safe(variant_type, JsonSchemaMixin):
         return []
-    restrictions: List[Field] = []
+    restrictions: Restriction = []
     for field, target_name in variant_type._get_fields():
         if field.metadata and "restrict" in field.metadata:
             restrictions.append((field, target_name))

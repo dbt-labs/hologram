@@ -101,8 +101,8 @@ def test_multi_symmetric():
         )
     )
     x_dict = {"thing": {"foo": "a", "is_something": True, "bar": "a and true"}}
-    assert x.to_dict() == x_dict
-    assert HasFancyRestricted.from_dict(x_dict) == x
+    assert x.to_dict(validate=True) == x_dict
+    assert HasFancyRestricted.from_dict(x_dict, validate=True) == x
 
     y = HasFancyRestricted(
         thing=FancyRestrictAFalse(
@@ -131,3 +131,70 @@ def test_multi_symmetric():
     # test the non-unioned forms, too!
     assert z.thing.to_dict() == z_dict["thing"]
     assert FancyRestrictBC.from_dict(z_dict["thing"]) == z.thing
+
+
+def test_json_schema_ok():
+    schema = HasFancyRestricted.json_schema()
+    assert schema["additionalProperties"] is False
+    assert schema["properties"] == {
+        "thing": {
+            "oneOf": [
+                {"$ref": "#/definitions/FancyRestrictATrue"},
+                {"$ref": "#/definitions/FancyRestrictAFalse"},
+                {"$ref": "#/definitions/FancyRestrictBC"},
+            ]
+        }
+    }
+    assert schema["required"] == ["thing"]
+
+    for k in "FancyRestrictATrue", "FancyRestrictAFalse", "FancyRestrictBC":
+        assert k in schema["definitions"]
+        assert schema["definitions"][k]["additionalProperties"] is False
+    assert schema["definitions"]["FancyRestrictATrue"]["type"] == "object"
+
+    assert schema["definitions"]["FancyRestrictATrue"]["properties"] == {
+        "foo": {"enum": ["a"], "type": "string"},
+        "is_something": {"enum": [True], "type": "boolean"},
+        "bar": {"type": "string"},
+    }
+    assert sorted(schema["definitions"]["FancyRestrictATrue"]["required"]) == [
+        "bar",
+        "foo",
+        "is_something",
+    ]
+    assert schema["definitions"]["FancyRestrictAFalse"]["properties"] == {
+        "foo": {"enum": ["a"], "type": "string"},
+        "is_something": {"enum": [False], "type": "boolean"},
+        "bar": {"type": "string"},
+    }
+    assert sorted(
+        schema["definitions"]["FancyRestrictAFalse"]["required"]
+    ) == ["bar", "foo", "is_something"]
+
+    schema["definitions"]["FancyRestrictBC"]["properties"]["foo"][
+        "enum"
+    ].sort()
+    assert schema["definitions"]["FancyRestrictBC"]["properties"] == {
+        "foo": {"enum": ["b", "c"], "type": "string"},
+        "bar": {"type": "string"},
+    }
+    assert sorted(schema["definitions"]["FancyRestrictBC"]["required"]) == [
+        "bar",
+        "foo",
+    ]
+
+
+class OtherSelector(StrEnum):
+    X = "x"
+    Y = "y"
+    Z = "z"
+
+
+@dataclass
+class InvalidRestrictedType(JsonSchemaMixin):
+    foo: MySelector = field(metadata={"restrict": [MySelector.A, int]})
+
+
+def test_bad_restrictions():
+    with pytest.raises(ValidationError):
+        InvalidRestrictedType.json_schema()
