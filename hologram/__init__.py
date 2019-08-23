@@ -11,6 +11,7 @@ from typing import (
     TypeVar,
     get_type_hints,
     Callable,
+    Generic,
 )
 import re
 from datetime import datetime
@@ -30,7 +31,7 @@ JSON_ENCODABLE_TYPES = {
     type(None): {"type": "null"},
 }
 
-JsonEncodable = Union[int, float, str, bool, type(None)]
+JsonEncodable = Union[int, float, str, bool, None]
 JsonDict = Dict[str, Any]
 
 
@@ -38,11 +39,11 @@ class ValidationError(jsonschema.ValidationError):
     pass
 
 
-def is_enum(field_type: Any):
+def is_enum(field_type: Any) -> bool:
     return issubclass_safe(field_type, Enum)
 
 
-def issubclass_safe(klass: Any, base: Type):
+def issubclass_safe(klass: Any, base: Type) -> bool:
     try:
         return issubclass(klass, base)
     except TypeError:
@@ -58,21 +59,24 @@ def is_optional(field: Any) -> bool:
     return False
 
 
-class FieldEncoder:
+TV = TypeVar("TV")
+
+
+class FieldEncoder(Generic[TV]):
     """Base class for encoding fields to and from JSON encodable values"""
 
-    def to_wire(self, value: Any) -> JsonEncodable:
-        return value
+    def to_wire(self, value: TV) -> JsonEncodable:
+        return value  # type: ignore
 
-    def to_python(self, value: JsonEncodable) -> Any:
-        return value
+    def to_python(self, value: JsonEncodable) -> TV:
+        return value  # type: ignore
 
     @property
     def json_schema(self) -> JsonDict:
         raise NotImplementedError()
 
 
-class DateTimeFieldEncoder(FieldEncoder):
+class DateTimeFieldEncoder(FieldEncoder[datetime]):
     """Encodes datetimes to RFC3339 format"""
 
     def to_wire(self, value: datetime) -> str:
@@ -93,15 +97,15 @@ class DateTimeFieldEncoder(FieldEncoder):
         return {"type": "string", "format": "date-time"}
 
 
-class UuidField(FieldEncoder):
-    def to_wire(self, value):
+class UuidField(FieldEncoder[UUID]):
+    def to_wire(self, value: UUID) -> str:
         return str(value)
 
-    def to_python(self, value):
+    def to_python(self, value) -> UUID:
         return UUID(value)
 
     @property
-    def json_schema(self):
+    def json_schema(self) -> JsonDict:
         # 'format': 'uuid' is not valid in "real" JSONSchema
         return {
             "type": "string",
@@ -143,7 +147,7 @@ class FieldMeta:
 
 
 @functools.lru_cache()
-def _validate_schema(schema_cls):
+def _validate_schema(schema_cls: Type[T]) -> JsonDict:
     schema = schema_cls.json_schema()
     jsonschema.Draft7Validator.check_schema(schema)
     return schema
@@ -174,8 +178,8 @@ def _get_restrictions(variant_type: Type) -> Restriction:
 
 
 def get_union_fields(
-    field_type: Union
-) -> Tuple[List[Any], List[RestrictedVariant]]:
+    field_type: Union[Any]
+) -> Tuple[List[RestrictedVariant], List[Any]]:
     """
     Unions have a __args__ that is all their variants (after typing's
     type-collapsing magic has run, so caveat emptor...)
@@ -549,8 +553,9 @@ class JsonSchemaMixin:
         for field, target_field in cls._get_fields():
             values = init_values if field.init else non_init_values
             if target_field in data or (
-                field.default == MISSING and field.default_factory == MISSING
-            ):  # type: ignore
+                field.default == MISSING
+                and field.default_factory == MISSING  # type: ignore
+            ):
                 values[field.name] = cls._decode_field(
                     field.name, field.type, data.get(target_field), validate
                 )
@@ -565,11 +570,11 @@ class JsonSchemaMixin:
         return instance
 
     @staticmethod
-    def _is_json_schema_subclass(field_type) -> bool:
+    def _is_json_schema_subclass(field_type: Type) -> bool:
         return issubclass_safe(field_type, JsonSchemaMixin)
 
     @staticmethod
-    def _has_definition(field_type) -> bool:
+    def _has_definition(field_type: Type) -> bool:
         return (
             issubclass_safe(field_type, JsonSchemaMixin)
             and field_type.__name__ != "PatternProperty"
@@ -579,13 +584,13 @@ class JsonSchemaMixin:
     def _get_field_meta(cls, field: Field) -> Tuple[FieldMeta, bool]:
         required = True
         field_meta = FieldMeta()
-        default_value = None
+        default_value: Optional[Callable[[], Any]] = None
         if field.default is not MISSING and field.default is not None:
             # In case of default value given
             default_value = field.default
         elif (
-            field.default_factory is not MISSING
-            and field.default_factory is not None
+            field.default_factory is not MISSING  # type: ignore
+            and field.default_factory is not None  # type: ignore
         ):  # type: ignore
             # In case of a default factory given, we call it
             default_value = field.default_factory()  # type: ignore
@@ -604,7 +609,7 @@ class JsonSchemaMixin:
 
     @classmethod
     def _encode_restrictions(
-        cls, restrictions: Union[List[Any], Enum]
+        cls, restrictions: Union[List[Any], Type[Enum]]
     ) -> JsonDict:
         field_schema: JsonDict = {}
         member_types = set()
