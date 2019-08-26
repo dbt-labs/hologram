@@ -1,12 +1,12 @@
 from dataclasses import fields
 from enum import Enum
-from typing import Type, NewType
+from typing import Type
 
-from . import JsonSchemaMixin, FieldEncoder, JsonDict
+from hologram import JsonSchemaMixin, FieldEncoder, JsonDict
 
 
 class StrEnum(str, Enum):
-    def __str__(self):
+    def __str__(self) -> str:
         return self.value
 
     # https://docs.python.org/3.6/library/enum.html#using-automatic-values
@@ -14,20 +14,23 @@ class StrEnum(str, Enum):
         return name
 
 
-def StrLiteral(value: str):
-    return StrEnum(value, value)
+def StrLiteral(value: str) -> Type[StrEnum]:
+    # mypy doesn't think this works, but it does
+    return StrEnum(value, value)  # type: ignore
 
 
-def NewPatternType(name: str, pattern: str) -> Type:
-    thing = NewType(name, str)
+def register_pattern(base_type: Type, pattern: str) -> None:
+    """base_type should be a typing.NewType that should always have the given
+    regex pattern. That means that its underlying type ('__supertype__') had
+    better be a str!
+    """
 
     class PatternEncoder(FieldEncoder):
         @property
         def json_schema(self):
             return {"type": "string", "pattern": pattern}
 
-    JsonSchemaMixin.register_field_encoders({thing: PatternEncoder()})
-    return thing
+    JsonSchemaMixin.register_field_encoders({base_type: PatternEncoder()})
 
 
 class HyphenatedJsonSchemaMixin(JsonSchemaMixin):

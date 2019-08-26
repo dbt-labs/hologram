@@ -1,12 +1,14 @@
 import pytest
 
 from dataclasses import dataclass
+from typing import NewType
 
 from hologram import ValidationError, JsonSchemaMixin
-from hologram.helpers import NewPatternType
+from hologram.helpers import register_pattern
 
 
-Uppercase = NewPatternType("Uppercase", r"[A-Z]+")
+Uppercase = NewType("Uppercase", str)
+register_pattern(Uppercase, r"[A-Z]+")
 
 
 @dataclass

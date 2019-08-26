@@ -21,7 +21,7 @@ jobs:
             python3 -m venv venv
             . venv/bin/activate
             python setup.py develop
-            pip install black pytest
+            pip install black pytest mypy
             
       - run:
           name: "Check code formatting"
@@ -39,6 +39,12 @@ jobs:
           command: |
             . venv/bin/activate
             pytest
+
+      - run:
+          name: "Run mypy"
+          command: |
+            . venv/bin/activate
+            mypy hologram
 
   py37:
     docker:
