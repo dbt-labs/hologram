@@ -281,11 +281,6 @@ class JsonSchemaMixin:
                 def encoder(ft, v, __):
                     return cls._field_encoders[ft].to_wire(v)
 
-            elif is_optional(field_type):
-
-                def encoder(ft, val, o):
-                    return cls._encode_field(ft.__args__[0], val, o)
-
             elif is_enum(field_type):
 
                 def encoder(_, v, __):
@@ -335,9 +330,22 @@ class JsonSchemaMixin:
                         for k, v in val.items()
                     }
 
-            elif field_type_name in ("Sequence", "List") or (
+            elif field_type_name == "List" or (
                 field_type_name == "Tuple" and ... in field_type.__args__
             ):
+
+                def encoder(ft, val, o):
+                    if not isinstance(val, (tuple, list)):
+                        valtype = type(val)
+                        # raise a TypeError so the union encoder will capture it
+                        raise TypeError(
+                            f"Invalid type, expected {field_type_name} but got {valtype}"
+                        )
+                    return [
+                        cls._encode_field(ft.__args__[0], v, o) for v in val
+                    ]
+
+            elif field_type_name == "Sequence":
 
                 def encoder(ft, val, o):
                     return [
@@ -436,11 +444,6 @@ class JsonSchemaMixin:
                 def decoder(_, ft, val):
                     return ft.from_dict(val, validate=validate)
 
-            elif is_optional(field_type):
-
-                def decoder(f, ft, val):
-                    return cls._decode_field(f, ft.__args__[0], val, validate)
-
             elif field_type_name == "Union":
                 # Attempt to decode the value using each decoder in turn
                 union_excs = (
@@ -474,13 +477,29 @@ class JsonSchemaMixin:
                         for k, v in val.items()
                     }
 
-            elif field_type_name in ("Sequence", "List") or (
+            elif field_type_name == "List" or (
                 field_type_name == "Tuple" and ... in field_type.__args__
             ):
                 seq_type = tuple if field_type_name == "Tuple" else list
 
                 def decoder(f, ft, val):
+                    if not isinstance(val, (tuple, list)):
+                        valtype = type(val)
+                        # raise a TypeError so the Union decoder will capture it
+                        raise TypeError(
+                            f"Invalid type, expected {field_type_name} but got {valtype}"
+                        )
                     return seq_type(
+                        cls._decode_field(f, ft.__args__[0], v, validate)
+                        for v in val
+                    )
+
+            # if you want to allow strings as sequences for some reason, you
+            # can still use 'Sequence' to get back a list of characters...
+            elif field_type_name == "Sequence":
+
+                def decoder(f, ft, val):
+                    return list(
                         cls._decode_field(f, ft.__args__[0], v, validate)
                         for v in val
                     )
@@ -512,7 +531,7 @@ class JsonSchemaMixin:
 
             if decoder is None:
                 raise ValidationError(
-                    f"Unable to decode value for '{field}: {field_type_name}'"
+                    f"Unable to decode value for '{field}: {field_type_name}' (value={value})"
                 )
                 return value
             cls._decode_cache[field_type] = decoder
