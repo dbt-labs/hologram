@@ -512,7 +512,7 @@ class JsonSchemaMixin:
 
             if decoder is None:
                 raise ValidationError(
-                    f"Unable to decode value for '{field}: {field_type_name}'"
+                    f"Unable to decode value for '{field}: {field_type_name}' (value={value})"
                 )
                 return value
             cls._decode_cache[field_type] = decoder
