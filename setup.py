@@ -1,9 +1,9 @@
 from setuptools import setup
 
 requires = [
-    "python-dateutil",
-    "jsonschema",
-    'dataclasses;python_version<"3.7"',
+    "python-dateutil>=2.8,<2.9",
+    "jsonschema<3.2",
+    'dataclasses==0.6;python_version<"3.7"',
 ]
 
 package_version = "0.0.3"
