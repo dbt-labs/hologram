@@ -2,7 +2,7 @@ from dataclasses import fields
 from enum import Enum
 from typing import Type
 
-from hologram import JsonSchemaMixin, FieldEncoder, JsonDict
+from hologram import JsonSchemaMixin, FieldEncoder
 
 
 class StrEnum(str, Enum):
@@ -48,8 +48,4 @@ class HyphenatedJsonSchemaMixin(JsonSchemaMixin):
 
 
 class ExtensibleJsonSchemaMixin(JsonSchemaMixin):
-    @classmethod
-    def _collect_json_schema(cls, definitions: JsonDict) -> JsonDict:
-        dct = super()._collect_json_schema(definitions=definitions)
-        dct["additionalProperties"] = True
-        return dct
+    ADDITIONAL_PROPERTIES = True

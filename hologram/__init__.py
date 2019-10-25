@@ -18,6 +18,7 @@ from datetime import datetime
 from dataclasses import fields, is_dataclass, Field, MISSING, dataclass, asdict
 from uuid import UUID
 from enum import Enum
+import threading
 import warnings
 
 from dateutil.parser import parse
@@ -225,6 +226,15 @@ def _decode_restrictions_met(
     )
 
 
+@dataclass
+class CompleteSchema:
+    schema: JsonDict
+    definitions: JsonDict
+
+
+_HOLOGRAM_LOCK = threading.RLock()
+
+
 class JsonSchemaMixin:
     """Mixin which adds methods to generate a JSON schema and
     convert to and from JSON encodable dicts with validation against the schema
@@ -236,13 +246,14 @@ class JsonSchemaMixin:
     }
 
     # Cache of the generated schema
-    _schema: Optional[Dict[str, JsonDict]] = None
-    _definitions: Optional[Dict[str, JsonDict]] = None
+    _schema: Optional[Dict[str, CompleteSchema]] = None
 
     # Cache of field encode / decode functions
     _encode_cache: Optional[Dict[Any, _ValueEncoder]] = None
     _decode_cache: Optional[Dict[Any, _ValueDecoder]] = None
     _mapped_fields: Optional[List[Tuple[Field, str]]] = None
+
+    ADDITIONAL_PROPERTIES = False
 
     @classmethod
     def field_mapping(cls) -> Dict[str, str]:
@@ -460,12 +471,25 @@ class JsonSchemaMixin:
                             field, variant, value, validate
                         )
 
+                errors: Dict[str, str] = {}
                 for variant in unrestricted:
                     try:
                         # we have to re-validate whatever we decode here
                         return cls._decode_field(field, variant, value, True)
-                    except union_excs:
+                    except union_excs as exc:
+                        msg = getattr(exc, "message", str(exc))
+                        errors[str(variant)] = msg
                         continue
+                # none of the unions decoded, so report about all of them
+
+                error_str = "\n".join(
+                    f"{name}: {error}" for name, error in errors.items()
+                )
+                raise ValidationError(
+                    "Unable to decode value for '{}: No members matched:\n{}".format(
+                        field, error_str
+                    )
+                )
 
             elif field_type_name in ("Mapping", "Dict"):
 
@@ -786,7 +810,11 @@ class JsonSchemaMixin:
             # Prevent recursion from forward refs & circular type dependencies
             if field_type.__name__ not in definitions:
                 definitions[field_type.__name__] = None
-                definitions.update(field_type.json_schema(embeddable=True))
+                definitions.update(
+                    field_type._json_schema_recursive(
+                        embeddable=True, definitions=definitions
+                    )
+                )
 
     @classmethod
     def all_json_schemas(cls) -> JsonDict:
@@ -798,25 +826,6 @@ class JsonSchemaMixin:
             else:
                 definitions.update(subclass.all_json_schemas())
         return definitions
-
-    @classmethod
-    def _cache_definitions(cls) -> JsonDict:
-        definitions: JsonDict = {}
-
-        if cls._definitions is None:
-            cls._definitions = {cls.__name__: definitions}
-        elif cls.__name__ not in cls._definitions:
-            cls._definitions[cls.__name__] = definitions
-        else:
-            definitions = cls._definitions[cls.__name__]
-        return definitions
-
-    @classmethod
-    def _cache_schema(cls, schema: JsonDict) -> None:
-        if cls._schema is None:
-            cls._schema = {}
-
-        cls._schema[cls.__name__] = schema
 
     @classmethod
     def _collect_json_schema(cls, definitions: JsonDict) -> JsonDict:
@@ -837,21 +846,57 @@ class JsonSchemaMixin:
             "type": "object",
             "required": required,
             "properties": properties,
-            "additionalProperties": False,
+            "additionalProperties": cls.ADDITIONAL_PROPERTIES,
         }
         if cls.__doc__:
             schema["description"] = cls.__doc__
         return schema
 
     @classmethod
-    def _schema_from_cache(cls, definitions: JsonDict) -> JsonDict:
+    def _schema_defs_from_cache(cls, definitions: JsonDict) -> CompleteSchema:
+        # this has to be done at the classmethod level because each subclass
+        # needs its own dict, and we don't want to use metaclasses here (it
+        # makes it hard for users to use metaclasses)
+        if cls._schema is None:
+            with _HOLOGRAM_LOCK:
+                # check again, in case we were waiting for someone else to do
+                # this.
+                if cls._schema is None:
+                    cls._schema = {}
 
-        if cls._schema is not None and cls.__name__ in cls._schema:
-            schema = cls._schema[cls.__name__]
-        else:
+        if cls.__name__ in cls._schema:
+            return cls._schema[cls.__name__]
+
+        with _HOLOGRAM_LOCK:
+            if cls.__name__ in cls._schema:
+                return cls._schema[cls.__name__]
+
+            # ok, no schema found. go build schemas
             schema = cls._collect_json_schema(definitions)
-            cls._cache_schema(schema)
-        return schema
+            complete_schema = CompleteSchema(
+                schema=schema, definitions=definitions
+            )
+            # now that we finished, write our schema in. In the worst-case we write
+            # over another thread's work.
+            cls._schema[cls.__name__] = complete_schema
+            return complete_schema
+
+    @classmethod
+    def _json_schema_recursive(
+        cls, embeddable: bool, definitions: JsonDict
+    ) -> JsonDict:
+        schema = cls._schema_defs_from_cache(definitions)
+
+        if embeddable:
+            return {**schema.definitions, cls.__name__: schema.schema}
+
+        return {
+            **schema.schema,
+            **{
+                "definitions": schema.definitions,
+                "$schema": "http://json-schema.org/draft-07/schema#",
+            },
+        }
 
     @classmethod
     def json_schema(cls, embeddable: bool = False) -> JsonDict:
@@ -868,19 +913,10 @@ class JsonSchemaMixin:
             )
             return cls.all_json_schemas()
 
-        definitions: JsonDict = cls._cache_definitions()
-        schema: JsonDict = cls._schema_from_cache(definitions)
-
-        if embeddable:
-            return {**definitions, cls.__name__: schema}
-
-        return {
-            **schema,
-            **{
-                "definitions": definitions,
-                "$schema": "http://json-schema.org/draft-07/schema#",
-            },
-        }
+        definitions: JsonDict = {}
+        return cls._json_schema_recursive(
+            embeddable=embeddable, definitions=definitions
+        )
 
     @staticmethod
     def _get_field_type_name(field_type: Any) -> str:
