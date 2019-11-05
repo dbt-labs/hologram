@@ -68,3 +68,20 @@ def test_decode():
         HasRestricted.from_dict(
             {"thing": {"foo": "c", "baz": 20}}, validate=True
         )
+
+
+@dataclass
+class IHaveExtremelyAnnoyingUnions(JsonSchemaMixin):
+    my_field: Union[Optional[str], bool, float] = None
+
+
+def test_evil_union():
+    pairs = [
+        (IHaveExtremelyAnnoyingUnions(my_field=True).to_dict(), {"my_field": True}),
+        (IHaveExtremelyAnnoyingUnions(my_field='1').to_dict(), {"my_field": '1'}),
+        (IHaveExtremelyAnnoyingUnions(my_field=1.0).to_dict(), {"my_field": 1.0}),
+        (IHaveExtremelyAnnoyingUnions().to_dict(), {}),
+    ]
+    for a, b in pairs:
+        assert a == b
+        assert IHaveExtremelyAnnoyingUnions.from_dict(b).to_dict() == a
