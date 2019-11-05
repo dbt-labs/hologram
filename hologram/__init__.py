@@ -179,7 +179,7 @@ def _get_restrictions(variant_type: Type) -> Restriction:
 
 
 def get_union_fields(
-    field_type: Union[Any]
+    field_type: Union[Any],
 ) -> Tuple[List[RestrictedVariant], List[Any]]:
     """
     Unions have a __args__ that is all their variants (after typing's

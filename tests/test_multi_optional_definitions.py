@@ -60,4 +60,3 @@ def test_decode():
         HasRestricted.from_dict(
             {"thing": {"foo": "c", "baz": 20}}, validate=True
         )
-
