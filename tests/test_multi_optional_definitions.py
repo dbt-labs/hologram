@@ -32,19 +32,19 @@ class HasRestricted(JsonSchemaMixin):
     thing: Union[RestrictAB, RestrictC, None]
 
 
-# def test_encode():
-#     x = HasRestricted(thing=RestrictAB(foo=MySelector.A, bar=20))
-#     assert x.to_dict() == {"thing": {"foo": "a", "bar": 20}}
+def test_encode():
+    x = HasRestricted(thing=RestrictAB(foo=MySelector.A, bar=20))
+    assert x.to_dict() == {"thing": {"foo": "a", "bar": 20}}
 
-#     y = HasRestricted(thing=1000)
-#     assert y.to_dict() == {"thing": 1000}
+    y = HasRestricted(thing=1000)
+    assert y.to_dict() == {"thing": 1000}
 
-#     z = HasRestricted(thing=RestrictC(foo=MySelector.C, baz="hi"))
-#     assert z.to_dict() == {"thing": {"foo": "c", "baz": "hi"}}
+    z = HasRestricted(thing=RestrictC(foo=MySelector.C, baz="hi"))
+    assert z.to_dict() == {"thing": {"foo": "c", "baz": "hi"}}
 
-#     with pytest.raises(ValidationError):
-#         x = HasRestricted(thing=RestrictAB(foo=MySelector.C, bar=20))
-#         x.to_dict(validate=True)
+    with pytest.raises(ValidationError):
+        x = HasRestricted(thing=RestrictAB(foo=MySelector.C, bar=20))
+        x.to_dict(validate=True)
 
 
 def test_decode():
