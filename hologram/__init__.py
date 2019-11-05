@@ -179,7 +179,7 @@ def _get_restrictions(variant_type: Type) -> Restriction:
 
 
 def get_union_fields(
-    field_type: Union[Any]
+    field_type: Union[Any],
 ) -> Tuple[List[RestrictedVariant], List[Any]]:
     """
     Unions have a __args__ that is all their variants (after typing's
@@ -793,11 +793,9 @@ class JsonSchemaMixin:
     @classmethod
     def _get_field_definitions(cls, field_type: Any, definitions: JsonDict):
         field_type_name = cls._get_field_type_name(field_type)
-        if is_optional(field_type) or field_type_name in (
-            "Sequence",
-            "List",
-            "Tuple",
-        ):
+        if (
+            is_optional(field_type) and len(field_type.__args__) == 2
+        ) or field_type_name in ("Sequence", "List", "Tuple",):
             cls._get_field_definitions(field_type.__args__[0], definitions)
         elif field_type_name in ("Dict", "Mapping"):
             cls._get_field_definitions(field_type.__args__[1], definitions)
