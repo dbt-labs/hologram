@@ -793,7 +793,7 @@ class JsonSchemaMixin:
     @classmethod
     def _get_field_definitions(cls, field_type: Any, definitions: JsonDict):
         field_type_name = cls._get_field_type_name(field_type)
-        if is_optional(field_type) or field_type_name in (
+        if (is_optional(field_type) and len(field_type.__args__) == 2) or field_type_name in (
             "Sequence",
             "List",
             "Tuple",
