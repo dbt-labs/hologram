@@ -27,7 +27,6 @@ class RestrictC(JsonSchemaMixin):
     baz: str
 
 
-
 @dataclass
 class HasRestricted(JsonSchemaMixin):
     thing: Union[RestrictAB, int, RestrictC]
