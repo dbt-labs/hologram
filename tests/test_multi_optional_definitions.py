@@ -1,7 +1,7 @@
 import pytest
 
 from dataclasses import dataclass, field
-from typing import Union, NewType
+from typing import Union, NewType, Optional
 
 from hologram import JsonSchemaMixin, ValidationError
 from hologram.helpers import StrEnum
@@ -26,10 +26,18 @@ class RestrictC(JsonSchemaMixin):
     foo: MySelector = field(metadata={"restrict": [MySelector.C]})
     baz: str
 
+@dataclass
+class A(JsonSchemaMixin):
+    baz: str
+
+@dataclass
+class B(JsonSchemaMixin):
+    baz: str
+
 
 @dataclass
 class HasRestricted(JsonSchemaMixin):
-    thing: Union[RestrictAB, RestrictC, None]
+    thing: Union[A, Optional[Union[RestrictAB, RestrictC]], B]
 
 
 def test_encode():
