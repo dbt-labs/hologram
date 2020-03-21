@@ -793,9 +793,12 @@ class JsonSchemaMixin:
     @classmethod
     def _get_field_definitions(cls, field_type: Any, definitions: JsonDict):
         field_type_name = cls._get_field_type_name(field_type)
-        if (
-            is_optional(field_type) and len(field_type.__args__) == 2
-        ) or field_type_name in ("Sequence", "List", "Tuple",):
+        if field_type_name == "Tuple":
+            # tuples are either like Tuple[T, ...] or Tuple[T1, T2, T3].
+            for member in field_type.__args__:
+                if member is not ...:
+                    cls._get_field_definitions(member, definitions)
+        elif field_type_name in ("Sequence", "List"):
             cls._get_field_definitions(field_type.__args__[0], definitions)
         elif field_type_name in ("Dict", "Mapping"):
             cls._get_field_definitions(field_type.__args__[1], definitions)

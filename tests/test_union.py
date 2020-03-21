@@ -49,3 +49,32 @@ def test_union_decode_error():
 
     with pytest.raises(ValidationError):
         IHaveAnnoyingUnions.from_dict({"my_field": {">=0.0.0"}})
+
+
+@dataclass
+class UnionMember(JsonSchemaMixin):
+    a: int
+
+
+@dataclass
+class LongOptionalUnion(JsonSchemaMixin):
+    # this devolves into Union[None, UnionMember]
+    member: Optional[Union[None, UnionMember]]
+
+
+def test_long_union_decoding():
+    x = LongOptionalUnion(None)
+    x.to_dict() == {"member": None}
+    LongOptionalUnion.from_dict({"member": None})
+
+    x = LongOptionalUnion(UnionMember(1))
+    x.to_dict() == {"member": {"a": 1}}
+    LongOptionalUnion.from_dict({"member": {"a": 1}}) == x
+
+    # x = LongOptionalUnion(UnionMemberB('test'))
+    # x.to_dict() == {'member': {'b': 'test'}}
+    # LongOptionalUnion.from_dict({'member': {'b': 'test'}}) == x
+
+    # x = LongOptionalUnion('value')
+    # x.to_dict() == {'member': 'value'}
+    # LongOptionalUnion.from_dict({'member': 'value'}) == x
