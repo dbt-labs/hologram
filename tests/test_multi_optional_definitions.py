@@ -26,9 +26,11 @@ class RestrictC(JsonSchemaMixin):
     foo: MySelector = field(metadata={"restrict": [MySelector.C]})
     baz: str
 
+
 @dataclass
 class A(JsonSchemaMixin):
     baz: str
+
 
 @dataclass
 class B(JsonSchemaMixin):
@@ -77,9 +79,18 @@ class IHaveExtremelyAnnoyingUnions(JsonSchemaMixin):
 
 def test_evil_union():
     pairs = [
-        (IHaveExtremelyAnnoyingUnions(my_field=True).to_dict(), {"my_field": True}),
-        (IHaveExtremelyAnnoyingUnions(my_field='1').to_dict(), {"my_field": '1'}),
-        (IHaveExtremelyAnnoyingUnions(my_field=1.0).to_dict(), {"my_field": 1.0}),
+        (
+            IHaveExtremelyAnnoyingUnions(my_field=True).to_dict(),
+            {"my_field": True},
+        ),
+        (
+            IHaveExtremelyAnnoyingUnions(my_field="1").to_dict(),
+            {"my_field": "1"},
+        ),
+        (
+            IHaveExtremelyAnnoyingUnions(my_field=1.0).to_dict(),
+            {"my_field": 1.0},
+        ),
         (IHaveExtremelyAnnoyingUnions().to_dict(), {}),
     ]
     for a, b in pairs:
