@@ -198,3 +198,50 @@ class InvalidRestrictedType(JsonSchemaMixin):
 def test_bad_restrictions():
     with pytest.raises(ValidationError):
         InvalidRestrictedType.json_schema()
+
+
+@dataclass
+class FancyRestrictATrueExtras(FancyRestrictBase):
+    foo: MySelector = field(metadata={"restrict": [MySelector.A]})
+    is_something: bool = field(metadata={"restrict": [True]})
+    bar: str
+    baz: str
+
+
+@dataclass
+class HasFancyRestrictedOverlapping(JsonSchemaMixin):
+    thing: Union[
+        FancyRestrictATrue,
+        FancyRestrictAFalse,
+        FancyRestrictBC,
+        FancyRestrictATrueExtras,
+    ]
+
+
+@dataclass
+class HasFancyRestrictedOverlappingReversed(JsonSchemaMixin):
+    thing: Union[
+        FancyRestrictATrueExtras,
+        FancyRestrictBC,
+        FancyRestrictAFalse,
+        FancyRestrictATrue,
+    ]
+
+
+def test_multi_overlapping_restricted():
+    classes = [
+        HasFancyRestrictedOverlapping,
+        HasFancyRestrictedOverlappingReversed,
+    ]
+    for cls in classes:
+        fancy_a = FancyRestrictATrue(
+            foo=MySelector.A, is_something=True, bar="hello"
+        )
+        fancy_a_extra = FancyRestrictATrueExtras(
+            foo=MySelector.A, is_something=True, bar="hello", baz="goodbye"
+        )
+        x = cls(thing=fancy_a)
+        y = cls(thing=fancy_a_extra)
+
+        assert cls.from_dict(x.to_dict()) == x
+        assert cls.from_dict(y.to_dict()) == y
