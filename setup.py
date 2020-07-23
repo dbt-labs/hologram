@@ -17,6 +17,7 @@ setup(
     name="hologram",
     description="JSON schema generation from dataclasses",
     long_description=read("README.md"),
+    long_description_content_type='text/markdown',
     packages=["hologram"],
     package_data={"hologram": ["py.typed"]},
     version=package_version,
