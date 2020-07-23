@@ -159,7 +159,7 @@ Restriction = List[Tuple[Field, str]]
 # a restricted variant is a pair of an object that has fields with restrictions
 # and those restrictions. Only JsonSchemaMixin subclasses may have restrictied
 # fields.
-RestrictedVariant = Tuple[Type[T], Restriction]
+Variant = Tuple[Type[T], Optional[Restriction]]
 
 
 def _get_restrictions(variant_type: Type) -> Restriction:
@@ -178,9 +178,7 @@ def _get_restrictions(variant_type: Type) -> Restriction:
     return restrictions
 
 
-def get_union_fields(
-    field_type: Union[Any],
-) -> Tuple[List[RestrictedVariant], List[Any]]:
+def get_union_fields(field_type: Union[Any]) -> List[Variant]:
     """
     Unions have a __args__ that is all their variants (after typing's
     type-collapsing magic has run, so caveat emptor...)
@@ -188,26 +186,31 @@ def get_union_fields(
     JsonSchemaMixin dataclasses have `Field`s, returned by the `_get_fields`
     method.
 
-    This method returns a tuple of two lists for any given union:
-         - the first is all of the variant types that have no restrictions,
-           which includes any primitives and any unrestricted fields
-         - the second is all of the variant types that have restrictions, and
-           their restrictions
+    This method returns list of 2-tuples:
+        - the first value is always a type
+        - the second value is None if there are no restrictions, or a list of
+            restrictions if there are restrictions
+
+    The list will be sorted so that unrestricted variants will always be at the
+    end.
     """
-    unrestricted: List[Any] = []
-    restricted: List[RestrictedVariant] = []
+    fields: List[Variant] = []
     for variant in field_type.__args__:
-        restrictions = _get_restrictions(variant)
-        if restrictions:
-            restricted.append((variant, restrictions))
-        else:
-            unrestricted.append(variant)
-    return restricted, unrestricted
+        restrictions: Optional[Restriction] = _get_restrictions(variant)
+        if not restrictions:
+            restrictions = None
+        fields.append((variant, restrictions))
+
+    # put unrestricted variants last
+    fields.sort(key=lambda f: f[1] is None)
+    return fields
 
 
 def _encode_restrictions_met(
-    value: Any, restrict_fields: List[Tuple[Field, str]]
+    value: Any, restrict_fields: Optional[List[Tuple[Field, str]]]
 ) -> bool:
+    if restrict_fields is None:
+        return True
     return all(
         (
             hasattr(value, f.name)
@@ -218,8 +221,10 @@ def _encode_restrictions_met(
 
 
 def _decode_restrictions_met(
-    value: Any, restrict_fields: List[Tuple[Field, str]]
+    value: Any, restrict_fields: Optional[List[Tuple[Field, str]]]
 ) -> bool:
+    if restrict_fields is None:
+        return True
     return all(
         n in value and value[n] in f.metadata["restrict"]
         for f, n in restrict_fields
@@ -301,17 +306,17 @@ class JsonSchemaMixin:
                 # Attempt to encode the field with each union variant.
                 # TODO: Find a more reliable method than this since in the case 'Union[List[str], Dict[str, int]]' this
                 # will just output the dict keys as a list
-                restricted, unrestricted = get_union_fields(field_type)
-                for variant, restrict_fields in restricted:
+                union_fields = get_union_fields(field_type)
+                for variant, restrict_fields in union_fields:
                     if _encode_restrictions_met(value, restrict_fields):
-                        return cls._encode_field(variant, value, omit_none)
-                encoded = None
-                for variant in unrestricted:
-                    try:
-                        encoded = cls._encode_field(variant, value, omit_none)
-                        break
-                    except (TypeError, AttributeError):
-                        continue
+                        try:
+                            encoded = cls._encode_field(
+                                variant, value, omit_none
+                            )
+                            break
+                        except (TypeError, AttributeError):
+                            continue
+
                 if encoded is None:
                     raise TypeError(
                         "No variant of '{}' matched the type '{}'".format(
@@ -463,23 +468,20 @@ class JsonSchemaMixin:
                     ValueError,
                     ValidationError,
                 )
-
-                restricted, unrestricted = get_union_fields(field_type)
-                for variant, restrict_fields in restricted:
-                    if _decode_restrictions_met(value, restrict_fields):
-                        return cls._decode_field(
-                            field, variant, value, validate
-                        )
-
                 errors: Dict[str, str] = {}
-                for variant in unrestricted:
-                    try:
-                        # we have to re-validate whatever we decode here
-                        return cls._decode_field(field, variant, value, True)
-                    except union_excs as exc:
-                        msg = getattr(exc, "message", str(exc))
-                        errors[str(variant)] = msg
-                        continue
+
+                union_fields = get_union_fields(field_type)
+                for variant, restrict_fields in union_fields:
+                    if _decode_restrictions_met(value, restrict_fields):
+                        try:
+                            return cls._decode_field(
+                                field, variant, value, True
+                            )
+                        except union_excs as exc:
+                            msg = getattr(exc, "message", str(exc))
+                            errors[str(variant)] = msg
+                            continue
+
                 # none of the unions decoded, so report about all of them
 
                 error_str = "\n".join(
