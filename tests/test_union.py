@@ -70,3 +70,10 @@ def test_long_union_decoding():
     x = LongOptionalUnion(UnionMember(1))
     x.to_dict() == {"member": {"a": 1}}
     LongOptionalUnion.from_dict({"member": {"a": 1}}) == x
+
+    with pytest.raises(ValidationError):
+        try:
+            LongOptionalUnion.from_dict({"member": {"b": 1}}, validate=False)
+        except ValidationError as exc:
+            str(exc)
+            raise
