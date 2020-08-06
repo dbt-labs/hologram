@@ -40,6 +40,36 @@ class ValidationError(jsonschema.ValidationError):
     pass
 
 
+class FutureValidationError(ValidationError):
+    # a validation error where we haven't called str() on inputs yet.
+    def __init__(self, field: str, errors: Dict[str, Exception]):
+        self.errors = errors
+        super().__init__("generic validation error")
+        self.initialized = False
+
+    def late_initialize(self):
+        lines: List[str] = []
+        for name, exc in self.errors.items():
+            # do not use getattr(exc, 'message', str(exc)), it's slow!
+            if hasattr(exc, "message"):
+                msg = exc.message
+            else:
+                msg = str(exc)
+            lines.append(f"{name}: {msg}")
+
+        super().__init__(
+            "Unable to decode value for '{}: No members matched:\n{}".format(
+                self.field, lines
+            )
+        )
+        self.initialized = True
+
+    def __str__(self):
+        if not self.initialized:
+            self.late_initialize()
+        return super().__str__(self)
+
+
 def is_enum(field_type: Any) -> bool:
     return issubclass_safe(field_type, Enum)
 
@@ -468,7 +498,7 @@ class JsonSchemaMixin:
                     ValueError,
                     ValidationError,
                 )
-                errors: Dict[str, str] = {}
+                errors: Dict[str, Exception] = {}
 
                 union_fields = get_union_fields(field_type)
                 for variant, restrict_fields in union_fields:
@@ -478,20 +508,11 @@ class JsonSchemaMixin:
                                 field, variant, value, True
                             )
                         except union_excs as exc:
-                            msg = getattr(exc, "message", str(exc))
-                            errors[str(variant)] = msg
+                            errors[str(variant)] = exc
                             continue
 
                 # none of the unions decoded, so report about all of them
-
-                error_str = "\n".join(
-                    f"{name}: {error}" for name, error in errors.items()
-                )
-                raise ValidationError(
-                    "Unable to decode value for '{}: No members matched:\n{}".format(
-                        field, error_str
-                    )
-                )
+                raise FutureValidationError(field, errors)
 
             elif field_type_name in ("Mapping", "Dict"):
 
