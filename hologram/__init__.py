@@ -44,6 +44,7 @@ class FutureValidationError(ValidationError):
     # a validation error where we haven't called str() on inputs yet.
     def __init__(self, field: str, errors: Dict[str, Exception]):
         self.errors = errors
+        self.field = field
         super().__init__("generic validation error")
         self.initialized = False
 
@@ -67,7 +68,7 @@ class FutureValidationError(ValidationError):
     def __str__(self):
         if not self.initialized:
             self.late_initialize()
-        return super().__str__(self)
+        return super().__str__()
 
 
 def is_enum(field_type: Any) -> bool:
