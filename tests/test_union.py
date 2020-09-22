@@ -1,7 +1,8 @@
 import pytest
 
 from dataclasses import dataclass
-from typing import Union, Optional, List
+from typing import Union, Optional, List, Dict, Any
+import re
 
 from hologram import JsonSchemaMixin, ValidationError
 
@@ -76,4 +77,21 @@ def test_long_union_decoding():
             LongOptionalUnion.from_dict({"member": {"b": 1}}, validate=False)
         except ValidationError as exc:
             str(exc)
+            raise
+
+
+@dataclass
+class UnionDefinition(JsonSchemaMixin):
+    my_field: Union[str, Dict[str, Any]]
+
+
+def test_union_definition():
+    dct = {"my_field": ["string_a", "string_b"]}
+    with pytest.raises(ValidationError):
+        try:
+            UnionDefinition.from_dict(dct)
+        except ValidationError as exc:
+            assert exc.validator == "oneOf"
+            assert re.search("'type': 'string'", str(exc))
+            assert re.search("'type': 'object'", str(exc))
             raise
