@@ -25,7 +25,7 @@ setup(
     author_email="info@fishtowanalytics.com, simon.knibbs@gmail.com",
     url="https://github.com/fishtown-analytics/hologram",
     install_requires=requires,
-    setup_requires=["pytest-runner", "setuptools_scm"],
+    setup_requires=["pytest-runner", "setuptools_scm", "wheel"],
     tests_require=["pytest", "flake8", "mypy"],
     license="MIT",
     classifiers=[
