@@ -960,6 +960,6 @@ class JsonSchemaMixin:
     def validate(cls, data: Any):
         schema = _validate_schema(cls)
         validator = jsonschema.Draft7Validator(schema)
-        error = jsonschema.exceptions.best_match(validator.iter_errors(data))
+        error = next(iter(validator.iter_errors(data)), None)
         if error is not None:
             raise ValidationError.create_from(error) from error
