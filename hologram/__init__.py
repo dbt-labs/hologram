@@ -35,6 +35,8 @@ JSON_ENCODABLE_TYPES = {
 JsonEncodable = Union[int, float, str, bool, None]
 JsonDict = Dict[str, Any]
 
+OPTIONAL_TYPES = ["Union", "Optional"]
+
 
 class ValidationError(jsonschema.ValidationError):
     pass
@@ -83,7 +85,9 @@ def issubclass_safe(klass: Any, base: Type) -> bool:
 
 
 def is_optional(field: Any) -> bool:
-    if str(field).startswith("typing.Union"):
+    if str(field).startswith("typing.Union") or str(field).startswith(
+        "typing.Optional"
+    ):
         for arg in field.__args__:
             if isinstance(arg, type) and issubclass(arg, type(None)):
                 return True
@@ -333,7 +337,7 @@ class JsonSchemaMixin:
                 def encoder(_, v, __):
                     return v.value
 
-            elif field_type_name == "Union":
+            elif field_type_name in OPTIONAL_TYPES:
                 # Attempt to encode the field with each union variant.
                 # TODO: Find a more reliable method than this since in the case 'Union[List[str], Dict[str, int]]' this
                 # will just output the dict keys as a list
@@ -491,7 +495,7 @@ class JsonSchemaMixin:
                 def decoder(_, ft, val):
                     return ft.from_dict(val, validate=validate)
 
-            elif field_type_name == "Union":
+            elif field_type_name in OPTIONAL_TYPES:
                 # Attempt to decode the value using each decoder in turn
                 union_excs = (
                     AttributeError,
@@ -725,7 +729,7 @@ class JsonSchemaMixin:
             field_schema.update(cls._encode_restrictions(restrictions))
 
         # if Union[..., None] or Optional[...]
-        elif type_name == "Union":
+        elif type_name in OPTIONAL_TYPES:
             field_schema = {
                 "oneOf": [
                     cls._get_field_schema(variant)[0]
@@ -828,7 +832,7 @@ class JsonSchemaMixin:
             cls._get_field_definitions(field_type.__args__[1], definitions)
         elif field_type_name == "PatternProperty":
             cls._get_field_definitions(field_type.TARGET_TYPE, definitions)
-        elif field_type_name == "Union":
+        elif field_type_name in OPTIONAL_TYPES:
             for variant in field_type.__args__:
                 cls._get_field_definitions(variant, definitions)
         elif cls._is_json_schema_subclass(field_type):
@@ -956,6 +960,6 @@ class JsonSchemaMixin:
     def validate(cls, data: Any):
         schema = _validate_schema(cls)
         validator = jsonschema.Draft7Validator(schema)
-        error = next(iter(validator.iter_errors(data)), None)
+        error = jsonschema.exceptions.best_match(validator.iter_errors(data))
         if error is not None:
             raise ValidationError.create_from(error) from error
