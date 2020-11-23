@@ -291,7 +291,7 @@ class JsonSchemaMixin:
     # Cache of field encode / decode functions
     _encode_cache: Optional[Dict[Any, _ValueEncoder]] = None
     _decode_cache: Optional[Dict[Any, _ValueDecoder]] = None
-    _mapped_fields: Optional[List[Tuple[Field, str]]] = None
+    _mapped_fields: Optional[Dict[Any, List[Tuple[Field, str]]]] = None
 
     ADDITIONAL_PROPERTIES = False
 
@@ -431,20 +431,25 @@ class JsonSchemaMixin:
 
     @classmethod
     def _get_fields(cls) -> List[Tuple[Field, str]]:
-        mapped_fields = []
-        type_hints = get_type_hints(cls)
+        if cls._mapped_fields is None:
+            cls._mapped_fields = {}
+        if cls.__name__ not in cls._mapped_fields:
+            mapped_fields = []
+            type_hints = get_type_hints(cls)
 
-        for f in fields(cls):
-            # Skip internal fields
-            if f.name.startswith("_"):
-                continue
+            for f in fields(cls):
+                # Skip internal fields
+                if f.name.startswith("_"):
+                    continue
 
-            # Note fields() doesn't resolve forward refs
-            f.type = type_hints[f.name]
+                # Note fields() doesn't resolve forward refs
+                f.type = type_hints[f.name]
 
-            mapped_fields.append((f, cls.field_mapping().get(f.name, f.name)))
-
-        return mapped_fields  # type: ignore
+                mapped_fields.append(
+                    (f, cls.field_mapping().get(f.name, f.name))
+                )
+            cls._mapped_fields[cls.__name__] = mapped_fields
+        return cls._mapped_fields[cls.__name__]
 
     def to_dict(
         self, omit_none: bool = True, validate: bool = False
