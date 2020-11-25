@@ -341,6 +341,7 @@ class JsonSchemaMixin:
                 # Attempt to encode the field with each union variant.
                 # TODO: Find a more reliable method than this since in the case 'Union[List[str], Dict[str, int]]' this
                 # will just output the dict keys as a list
+                encoded = None
                 union_fields = get_union_fields(field_type)
                 for variant, restrict_fields in union_fields:
                     if _encode_restrictions_met(value, restrict_fields):
