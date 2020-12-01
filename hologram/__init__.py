@@ -12,6 +12,7 @@ from typing import (
     get_type_hints,
     Callable,
     Generic,
+    Hashable,
 )
 import re
 from datetime import datetime
@@ -183,7 +184,8 @@ class FieldMeta:
 
 
 @functools.lru_cache()
-def _validate_schema(schema_cls: Type[T]) -> JsonDict:
+def _validate_schema(h_schema_cls: Hashable) -> JsonDict:
+    schema_cls = cast(Type[JsonSchemaMixin], h_schema_cls)  # making mypy happy
     schema = schema_cls.json_schema()
     jsonschema.Draft7Validator.check_schema(schema)
     return schema
@@ -958,7 +960,8 @@ class JsonSchemaMixin:
 
     @classmethod
     def validate(cls, data: Any):
-        schema = _validate_schema(cls)
+        h_cls = cast(Hashable, cls)
+        schema = _validate_schema(h_cls)
         validator = jsonschema.Draft7Validator(schema)
         error = next(iter(validator.iter_errors(data)), None)
         if error is not None:
