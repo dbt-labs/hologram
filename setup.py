@@ -17,7 +17,7 @@ setup(
     name="hologram",
     description="JSON schema generation from dataclasses",
     long_description=read("README.md"),
-    long_description_content_type='text/markdown',
+    long_description_content_type="text/markdown",
     packages=["hologram"],
     package_data={"hologram": ["py.typed"]},
     version=package_version,
@@ -25,8 +25,6 @@ setup(
     author_email="info@fishtowanalytics.com, simon.knibbs@gmail.com",
     url="https://github.com/fishtown-analytics/hologram",
     install_requires=requires,
-    setup_requires=["pytest-runner", "setuptools_scm", "wheel"],
-    tests_require=["pytest", "flake8", "mypy"],
     license="MIT",
     classifiers=[
         "Development Status :: 4 - Beta",
@@ -35,6 +33,8 @@ setup(
         "Programming Language :: Python",
         "Programming Language :: Python :: 3.6",
         "Programming Language :: Python :: 3.7",
+        "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python :: 3.9",
         "Topic :: Software Development :: Libraries",
     ],
 )

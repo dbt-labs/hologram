@@ -1,44 +1,34 @@
 version: 2
 
 jobs:
-  py36:
+  lint:
     docker:
-      - image: circleci/python:3.6
-
-    steps: &test-steps
+      - image: circleci/python:3.9
+    steps:
       - checkout
 
-      # Download and cache dependencies
       - restore_cache:
           keys:
-            - v1-dependencies-{{ checksum "setup.py" }}
-            # fallback to using the latest cache if no exact match is found
-            - v1-dependencies-
+            - v1-lint-{{ checksum "setup.py" }}
+            - v1-lint-
 
       - run:
           name: "Setup"
           command: |
             python3 -m venv venv
             . venv/bin/activate
-            python setup.py develop
-            pip install black pytest mypy
-            
+            pip install . black mypy
+
+      - save_cache:
+          paths:
+            - ./venv
+          key: v1-lint-{{ checksum "setup.py" }}
+
       - run:
           name: "Check code formatting"
           command: |
             . venv/bin/activate
             black --check hologram/ tests/
-
-      - save_cache:
-          paths:
-            - ./venv
-          key: v1-dependencies-{{ checksum "setup.py" }}
-
-      - run:
-          name: "Run tests"
-          command: |
-            . venv/bin/activate
-            pytest
 
       - run:
           name: "Run mypy"
@@ -46,9 +36,52 @@ jobs:
             . venv/bin/activate
             mypy hologram
 
+  py36:
+    docker:
+      - image: circleci/python:3.6
+
+    steps: &test-steps
+      - checkout
+
+      - restore_cache:
+          keys:
+            - v1-unit-{{ checksum "setup.py" }}
+            # fallback to using the latest cache if no exact match is found
+            - v1-unit-
+
+      - run:
+          name: "Setup"
+          command: |
+            python3 -m venv venv
+            . venv/bin/activate
+            pip install . pytest
+
+      - save_cache:
+          paths:
+            - ./venv
+          key: v1-unit-{{ checksum "setup.py" }}
+
+      - run:
+          name: "Run tests"
+          command: |
+            . venv/bin/activate
+            pytest
+
   py37:
     docker:
       - image: circleci/python:3.7
+
+    steps: *test-steps
+
+  py38:
+    docker:
+      - image: circleci/python:3.8
+
+    steps: *test-steps
+
+  py39:
+    docker:
+      - image: circleci/python:3.9
 
     steps: *test-steps
 
@@ -56,5 +89,16 @@ workflows:
   version: 2
   build-all:
     jobs:
-      - py36
-      - py37
+      - lint
+      - py36:
+          requires:
+            - lint
+      - py37:
+          requires:
+            - lint
+      - py38:
+          requires:
+            - lint
+      - py39:
+          requires:
+            - lint
