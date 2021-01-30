@@ -13,6 +13,7 @@ from typing import (
     Callable,
     Generic,
     Hashable,
+    ClassVar,
 )
 import re
 from datetime import datetime
@@ -282,20 +283,22 @@ class JsonSchemaMixin:
     convert to and from JSON encodable dicts with validation against the schema
     """
 
-    _field_encoders: Dict[Type, FieldEncoder] = {
+    _field_encoders: ClassVar[Dict[Type, FieldEncoder]] = {
         datetime: DateTimeFieldEncoder(),
         UUID: UuidField(),
     }
 
     # Cache of the generated schema
-    _schema: Optional[Dict[str, CompleteSchema]] = None
+    _schema: ClassVar[Optional[Dict[str, CompleteSchema]]] = None
 
     # Cache of field encode / decode functions
-    _encode_cache: Optional[Dict[Any, _ValueEncoder]] = None
-    _decode_cache: Optional[Dict[Any, _ValueDecoder]] = None
-    _mapped_fields: Optional[List[Tuple[Field, str]]] = None
+    _encode_cache: ClassVar[Optional[Dict[Any, _ValueEncoder]]] = None
+    _decode_cache: ClassVar[Optional[Dict[Any, _ValueDecoder]]] = None
+    _mapped_fields: ClassVar[
+        Optional[Dict[Any, List[Tuple[Field, str]]]]
+    ] = None
 
-    ADDITIONAL_PROPERTIES = False
+    ADDITIONAL_PROPERTIES: ClassVar[bool] = False
 
     @classmethod
     def field_mapping(cls) -> Dict[str, str]:
@@ -315,6 +318,9 @@ class JsonSchemaMixin:
             cls._field_encoders = {**cls._field_encoders, **field_encoders}
         else:
             cls._field_encoders.update(field_encoders)
+
+    def _local_to_dict(self, **kwargs):
+        return self.to_dict(**kwargs)
 
     @classmethod
     def _encode_field(
@@ -416,7 +422,9 @@ class JsonSchemaMixin:
             elif cls._is_json_schema_subclass(field_type):
                 # Only need to validate at the top level
                 def encoder(_, v, o):
-                    return v.to_dict(omit_none=o, validate=False)
+                    # this calls _local_to_dict in order to support
+                    # combining this code with mashumaro
+                    return v._local_to_dict(omit_none=o)
 
             elif hasattr(field_type, "__supertype__"):  # NewType field
 
@@ -433,20 +441,33 @@ class JsonSchemaMixin:
 
     @classmethod
     def _get_fields(cls) -> List[Tuple[Field, str]]:
-        mapped_fields = []
-        type_hints = get_type_hints(cls)
+        if cls._mapped_fields is None:
+            cls._mapped_fields = {}
+        if cls.__name__ not in cls._mapped_fields:
+            mapped_fields = []
+            type_hints = get_type_hints(cls)
 
-        for f in fields(cls):
-            # Skip internal fields
-            if f.name.startswith("_"):
-                continue
+            for f in fields(cls):
+                # Skip internal fields
+                if f.name.startswith("_"):
+                    continue
 
-            # Note fields() doesn't resolve forward refs
-            f.type = type_hints[f.name]
+                # Note fields() doesn't resolve forward refs
+                f.type = type_hints[f.name]
 
-            mapped_fields.append((f, cls.field_mapping().get(f.name, f.name)))
+                mapped_fields.append(
+                    (f, cls.field_mapping().get(f.name, f.name))
+                )
+            cls._mapped_fields[cls.__name__] = mapped_fields
+        return cls._mapped_fields[cls.__name__]
 
-        return mapped_fields  # type: ignore
+    @classmethod
+    def _get_field_names(cls):
+        fields = cls._get_fields()
+        field_names = []
+        for element in fields:
+            field_names.append(element[1])
+        return field_names
 
     def to_dict(
         self, omit_none: bool = True, validate: bool = False
