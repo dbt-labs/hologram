@@ -3,7 +3,7 @@ from setuptools import setup
 requires = [
     "python-dateutil>=2.8,<2.9",
     "jsonschema<3.2,>=3.0",
-    'dataclasses==0.6;python_version<"3.7"',
+    'dataclasses>=0.6,<0.9;python_version<"3.7"',
 ]
 
 package_version = "0.0.13"
