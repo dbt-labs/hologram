@@ -1,7 +1,7 @@
 from setuptools import setup
 
 requires = [
-    "python-dateutil>=2.8,<2.9",
+    "types-python-dateutil>=2.8,<2.9",
     "jsonschema<4.0,>=3.0",
     'dataclasses>=0.6,<0.9;python_version<"3.7"',
 ]
