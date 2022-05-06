@@ -34,7 +34,7 @@ jobs:
           name: "Run mypy"
           command: |
             . venv/bin/activate
-            mypy hologram
+            mypy hologram --ignore-missing-imports
 
   py36:
     docker:
