@@ -321,6 +321,10 @@ class JsonSchemaMixin:
 
     def _local_to_dict(self, **kwargs):
         return self.to_dict(**kwargs)
+    
+    @classmethod
+    def _custom_schema(cls, data):
+        return data
 
     @classmethod
     def _encode_field(
@@ -900,6 +904,8 @@ class JsonSchemaMixin:
             "properties": properties,
             "additionalProperties": cls.ADDITIONAL_PROPERTIES,
         }
+        if hasattr(cls, "_custom_schema"):
+            schema = cls._custom_schema(schema)
         if cls.__doc__:
             schema["description"] = cls.__doc__
         return schema
