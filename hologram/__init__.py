@@ -904,8 +904,9 @@ class JsonSchemaMixin:
             "properties": properties,
             "additionalProperties": cls.ADDITIONAL_PROPERTIES,
         }
-        if hasattr(cls, "_custom_schema"):
-            schema = cls._custom_schema(schema)
+        # generate custom schema
+        schema = cls._custom_schema(schema)
+        
         if cls.__doc__:
             schema["description"] = cls.__doc__
         return schema
