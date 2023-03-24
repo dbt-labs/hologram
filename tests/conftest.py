@@ -68,7 +68,7 @@ class Bar(JsonSchemaMixin):
 class Baz(JsonSchemaMixin):
     """Type with nested default value"""
 
-    a: Point = field(default=Point(0.0, 0.0))
+    a: Point = field(default_factory=lambda: Point(0.0, 0.0))
 
 
 @dataclass
