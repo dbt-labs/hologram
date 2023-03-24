@@ -6,7 +6,7 @@ requires = [
     'dataclasses>=0.6,<0.9;python_version<"3.7"',
 ]
 
-package_version = "0.0.15"
+package_version = "0.0.16"
 
 
 def read(f):
