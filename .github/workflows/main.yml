@@ -1,3 +1,6 @@
+# **what**: linting (black, mypy) and testing (pytest) workflows for Hologram
+# **why**: to ensure that the code is formatted correctly and that it passes all tests
+# **when**: on every push to main and every pull request
 name: CI
 
 on:
@@ -42,7 +45,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: [3.6, 3.7, 3.8, 3.9]
+        python-version: [3.7, 3.8, 3.9, 3.10, 3.11]
 
     steps:
     - name: Checkout repository
