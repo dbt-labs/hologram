@@ -41,7 +41,6 @@ jobs:
         mypy hologram --ignore-missing-imports
 
   test:
-    needs: lint
     runs-on: ubuntu-latest
     strategy:
       matrix:
