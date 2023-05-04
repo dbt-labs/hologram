@@ -1,0 +1,133 @@
+name: dbt-labs/hologram/build-all
+on:
+  push:
+    branches:
+    - master
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    container:
+      image: python:3.9
+    steps:
+    - uses: actions/checkout@v3.5.0
+    - name: restore_cache
+      uses: actions/cache@v3.3.1
+      with:
+        key: v1-lint-{{ checksum "setup.py" }}
+        restore-keys: |-
+          v1-lint-{{ checksum "setup.py" }}
+          v1-lint-
+        path: "./venv"
+    - name: Setup
+      run: |-
+        python3 -m venv venv
+        . venv/bin/activate
+        pip install . black mypy
+    - name: Check code formatting
+      run: |-
+        . venv/bin/activate
+        black --check hologram/ tests/
+    - name: Run mypy
+      run: |-
+        . venv/bin/activate
+        mypy hologram --ignore-missing-imports
+  py36:
+    runs-on: ubuntu-latest
+    container:
+      image: python:3.6
+    needs:
+    - lint
+    steps:
+    - uses: actions/checkout@v3.5.0
+    - name: restore_cache
+      uses: actions/cache@v3.3.1
+      with:
+        key: v1-unit-{{ checksum "setup.py" }}
+        restore-keys: |-
+          v1-unit-{{ checksum "setup.py" }}
+          v1-unit-
+        path: "./venv"
+    - name: Setup
+      run: |-
+        python3 -m venv venv
+        . venv/bin/activate
+        pip install . pytest
+    - name: Run tests
+      run: |-
+        . venv/bin/activate
+        pytest
+  py37:
+    runs-on: ubuntu-latest
+    container:
+      image: python:3.7
+    needs:
+    - lint
+    steps:
+    - uses: actions/checkout@v3.5.0
+    - name: restore_cache
+      uses: actions/cache@v3.3.1
+      with:
+        key: v1-unit-{{ checksum "setup.py" }}
+        restore-keys: |-
+          v1-unit-{{ checksum "setup.py" }}
+          v1-unit-
+        path: "./venv"
+    - name: Setup
+      run: |-
+        python3 -m venv venv
+        . venv/bin/activate
+        pip install . pytest
+    - name: Run tests
+      run: |-
+        . venv/bin/activate
+        pytest
+  py38:
+    runs-on: ubuntu-latest
+    container:
+      image: python:3.8
+    needs:
+    - lint
+    steps:
+    - uses: actions/checkout@v3.5.0
+    - name: restore_cache
+      uses: actions/cache@v3.3.1
+      with:
+        key: v1-unit-{{ checksum "setup.py" }}
+        restore-keys: |-
+          v1-unit-{{ checksum "setup.py" }}
+          v1-unit-
+        path: "./venv"
+    - name: Setup
+      run: |-
+        python3 -m venv venv
+        . venv/bin/activate
+        pip install . pytest
+    - name: Run tests
+      run: |-
+        . venv/bin/activate
+        pytest
+  py39:
+    runs-on: ubuntu-latest
+    container:
+      image: python:3.9
+    needs:
+    - lint
+    steps:
+    - uses: actions/checkout@v3.5.0
+    - name: restore_cache
+      uses: actions/cache@v3.3.1
+      with:
+        key: v1-unit-{{ checksum "setup.py" }}
+        restore-keys: |-
+          v1-unit-{{ checksum "setup.py" }}
+          v1-unit-
+        path: "./venv"
+    - name: Setup
+      run: |-
+        python3 -m venv venv
+        . venv/bin/activate
+        pip install . pytest
+    - name: Run tests
+      run: |-
+        . venv/bin/activate
+        pytest
