@@ -381,7 +381,6 @@ class JsonSchemaMixin:
                 # TODO: is there some way to set __args__ on this so it can
                 # just re-use Dict/Mapping?
                 def encoder(ft, val, o):
-
                     return {
                         cls._encode_field(str, k, o): cls._encode_field(
                             ft.TARGET_TYPE, v, o
@@ -740,7 +739,6 @@ class JsonSchemaMixin:
         required: bool = True,
         restrictions: Optional[List[Any]] = None,
     ) -> Tuple[JsonDict, bool]:
-
         field_schema: JsonDict = {"type": "object"}
 
         type_name = cls._get_field_type_name(target)
