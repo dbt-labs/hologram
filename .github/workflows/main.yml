@@ -19,10 +19,10 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v3
 
-    - name: Set up Python 3.9
+    - name: Set up Python 3.12
       uses: actions/setup-python@v4
       with:
-        python-version: 3.9
+        python-version: 3.12
 
     - name: Install dependencies
       run: |
@@ -38,13 +38,13 @@ jobs:
     - name: Run mypy
       run: |
         source venv/bin/activate
-        mypy hologram --ignore-missing-imports
+        mypy hologram --ignore-missing-imports --install-types --non-interactive
 
   test:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ['3.7', '3.8', '3.9', '3.10', '3.11']
+        python-version: ['3.10', '3.11', '3.12']
 
     steps:
     - name: Checkout repository
