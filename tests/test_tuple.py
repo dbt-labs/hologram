@@ -11,7 +11,8 @@ class TupleMember(JsonSchemaMixin):
 
 @dataclass
 class TupleEllipsisHolder(JsonSchemaMixin):
-    member: Tuple[TupleMember, ...]
+    member1: Tuple[TupleMember, ...]
+    member2: tuple[TupleMember, ...]
 
 
 @dataclass
@@ -25,9 +26,13 @@ class TupleMemberSecondHolder(JsonSchemaMixin):
 
 
 def test_ellipsis_tuples():
-    dct = {"member": [{"a": 1}, {"a": 2}, {"a": 3}]}
+    dct = {
+        "member1": [{"a": 1}, {"a": 2}, {"a": 3}],
+        "member2": [{"a": 1}, {"a": 2}, {"a": 3}],
+    }
     value = TupleEllipsisHolder(
-        member=(TupleMember(1), TupleMember(2), TupleMember(3))
+        member1=(TupleMember(1), TupleMember(2), TupleMember(3)),
+        member2=(TupleMember(1), TupleMember(2), TupleMember(3)),
     )
     assert value.to_dict() == dct
     assert TupleEllipsisHolder.from_dict(dct) == value
